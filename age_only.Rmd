@@ -1,0 +1,140 @@
+---
+title: "Age Only"
+author: "Beau Coker"
+date: "6/27/2018"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+load("Table_construction.Rdata")
+```
+
+## Probability of Recidivism (based on age only)
+
+```{r}
+df_prob = features %>%
+  inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
+  filter(!is.na(current_offense_date)) %>% # Filter 3
+  filter(screening_date <= current_offense_date_limit) %>% # Filter 4
+  select(p_current_age, recid)
+
+mdl = glm(recid ~ p_current_age, data=df_prob)
+
+ggplot(data=df_prob, aes(x=p_current_age, y=recid)) + 
+  geom_jitter(height=.05,alpha=.3, aes(color="Reoffend")) +
+  geom_smooth(method = "glm", 
+              method.args = list(family = "binomial"), 
+              se = FALSE,
+              aes(color="Probability of Reoffending")) +
+  theme_bw() +
+  xlab("Age on COMPAS screening date") +
+  ylab("")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14),
+        legend.position = "top") +
+  scale_color_discrete(name = element_blank())
+```
+
+```{r}
+ggsave("Figures/prob_recid.pdf",width = 5, height = 3, units = "in")
+```
+
+## Age of Caucasians and African-Americans
+
+```{r}
+df_age = left_join(
+  data_before %>% 
+    select(person_id, screening_date, people) %>%
+    unnest() %>%
+    select(person_id, screening_date, race),
+  features,
+  by = c("person_id","screening_date")) %>%
+  inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
+  filter(race %in% c("African-American", "Caucasian")) # Filter 2
+  #filter(!is.na(current_offense_date)) # Filter 3
+```
+
+```{r}
+## Average and median ages
+df_age %>%
+  group_by(race) %>%
+  summarize(mean(p_current_age), median(p_current_age))
+```
+
+```{r}
+## Age histograms
+df_age %>%
+  ggplot() +
+  geom_histogram(aes(x=p_current_age,y=..density..), bins=30)+
+  facet_grid(. ~ race) +
+  xlab("Age on COMPAS screening date") +
+  ylab("Frequency") +
+  theme_bw() +
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+ggsave("Figures/age_histograms.pdf",width = 7, height = 3, units = "in")
+```
+
+## TPR/FPR by race
+
+```{r}
+# Parameters for AGE model
+age_thresh = 24
+
+accuracy = 
+  df_age %>%
+  filter(!is.na(first_offense_date) & !is.na(current_offense_date)) %>%
+  mutate(race = if_else(race=="African-American","African-\nAmerican","Caucasian")) %>%
+  mutate(AGE = if_else(p_current_age <= age_thresh, 1, 0),
+         COMPAS = if_else(`Risk of Recidivism_decile_score` >= 5, 1, 0)) %>%
+  select(person_id, screening_date, race, p_current_age, recid, AGE, COMPAS) %>%
+  gather(key='algorithm', value='pred', AGE, COMPAS) %>%
+  mutate(correct = pred == recid) %>%
+  dplyr::slice(sample(1:n())) %>%
+  group_by(race, algorithm) %>%
+  mutate(fold = row_number() %% 10) %>%
+  group_by(fold, race, algorithm) %>%
+  summarize(count = n(), 
+            TPR = sum(correct == TRUE & pred == 1) / sum(recid == 1),
+            FPR = sum(correct == FALSE & pred == 1) / sum(recid == 0),
+            TNR = sum(correct == TRUE & pred == 0) / sum(recid == 0),
+            FNR = sum(correct == FALSE & pred == 0) / sum(recid == 1)
+  )
+
+accuracy %>%
+  gather(key = "type", value = "rate", TPR, FPR, TNR, FNR) %>%
+  mutate(plot = factor(if_else(type %in% c("TPR","FPR"), "TPR/FPR", "TNR/FNR"), levels=c("TPR/FPR", "TNR/FNR"))) %>%
+  mutate(group = factor(paste0(plot,"\n",algorithm),
+                        levels = c("TPR/FPR\nAGE","TPR/FPR\nCOMPAS","TNR/FNR\nAGE","TNR/FNR\nCOMPAS")
+  )) %>%
+  ggplot() +
+  geom_jitter(aes(x = as.factor(race), y = rate, shape=as.factor(type), color=as.factor(race)), 
+              width=.2,
+              size=3)  +
+  facet_grid(. ~ group) +
+  theme_bw() +
+  theme(axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        text = element_text(size=12),
+        axis.text=element_text(size=12),
+        legend.position = "top") +
+  scale_color_discrete(name = "Race") +
+  scale_shape_discrete(name = "Rate")
+
+```
+
+
+```{r}
+ggsave("Figures/TPR-FPR.pdf",width = 7.5, height = 4, units = "in")
+```

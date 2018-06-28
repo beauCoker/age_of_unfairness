@@ -1,0 +1,652 @@
+---
+title: "Predicting Raw Violent COMPAS scores"
+author: "Beau Coker"
+date: "6/27/2018"
+output: html_document
+---
+
+```{r, message=FALSE,warning=FALSE}
+library(xgboost)
+library(randomForest)
+library(tidyverse)
+library(lubridate)
+
+source('functions.r')
+```
+
+```{r}
+load("Table_construction.Rdata")
+```
+
+# Violent Recidivism
+
+## Generic stuff (applies to all models)
+
+```{r}
+### Add useful columns to features and apply row filters used for all models
+features_filt = features %>%
+  inner_join(
+    data_before %>% 
+      select(person_id, screening_date, people) %>%
+      unnest() %>%
+      select(person_id, screening_date, race, sex, name),
+    by = c("person_id","screening_date")
+  ) %>%
+  inner_join(features_on, by = c("person_id","screening_date")) %>%
+  inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
+  filter(!is.na(current_offense_date)) %>% # Filter 3
+  mutate(p_recid_raw = `Risk of Violence_raw_score`,
+         age_poly = 4.07808994851e-7*p_current_age^4
+         - 8.8176770770443e-5*p_current_age^3
+         + 7.436939324225960e-3*p_current_age^2
+         - 0.316106532730131*p_current_age
+         + 1.55398886997356,
+         p_recid_raw_noage = p_recid_raw - age_poly)
+
+## Set parameters (each combination will be run)
+param <- list(objective = "reg:linear",
+              eval_metric = "rmse",
+              eta = c(.05,.1),
+              gamma = c(.5, 1), 
+              max_depth = c(2,5),
+              min_child_weight = c(5,10),
+              subsample = c(1),
+              colsample_bytree = c(1)
+)
+
+# svm
+param_svm = list(
+  type = 'eps-regression',
+  cost = c(0.5,1,2),
+  epsilon = c(0.5,1,1.5),
+  gamma_scale = c(0.5,1,2)
+)
+```
+
+```{r}
+res_rmse = data.frame(Group = 1:4, lm = NA, xgb = NA, rf = NA, svm = NA)
+```
+
+```{r}
+## Age polynomial
+features_filt %>%
+  ggplot()+
+  geom_point(aes(x=p_current_age, p_recid_raw, color="b"), alpha=.3) +
+  geom_line(aes(x=p_current_age, age_poly, color="a")) +
+  theme_bw()+
+  xlim(18,70)+
+  xlab("Age at COMPAS screening date") +
+  ylab("COMPAS violence raw") +
+  theme(
+        text = element_text(size=12),
+        axis.text=element_text(size=12),
+        legend.position="none")
+```
+
+```{r}
+ggsave("Figures/age_agePoly_violent.pdf",width = 3.5, height = 2.5, units = "in")
+```
+
+```{r}
+### Number of priors vs. COMPAS remainder
+ggplot(data=features_filt) +
+  geom_point(aes(x=p_charge_violent, y=p_recid_raw_noage), alpha=.3)+
+  theme_bw() +
+  xlab("Number of prior violent charges") +
+  ylab("COMPAS violence raw remainder") +
+  theme(
+        text = element_text(size=12),
+        axis.text=element_text(size=12))
+```
+
+```{r}
+ggsave("Figures/priors_rawScoreRemain_violent.pdf",width = 3.5, height = 3.5, units = "in")
+```
+
+
+
+## Replicating ProPublica logistic regression
+
+```{r}
+propub = features_filt %>%
+  filter(current_offense_date <= current_offense_date_limit) %>% # Only people with valid recidivism values
+  mutate(age_low = if_else(p_current_age < 25,1,0), 
+         age_high = if_else(p_current_age > 45,1,0),
+         female = if_else(sex=="Female",1,0),
+         n_priors = p_felony_count_person + p_misdem_count_person,
+         compas_high = if_else(`Risk of Violence_decile_score` >= 5, 1, 0), # Medium and High risk scores get +1 label
+         race = relevel(factor(race), ref="Caucasian")) # Base level is Caucasian, as in ProPublica analysis
+```
+
+```{r}
+mdl_glm = glm(compas_high ~
+                female +
+                age_high +
+                age_low +
+                as.factor(race) +
+                p_charge +
+                is_misdem +
+                recid_violent,
+                family=binomial(link='logit'), data=propub)
+
+summary(mdl_glm)
+```
+
+
+
+
+
+## Group 1 models: predicting (raw - age polynomial) without using age variables or race
+
+```{r}
+### Create group 1 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    #p_current_age,
+    p_age_first_offense,
+    p_juv_fel_count = pmin(p_juv_fel_count,2),
+    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
+    p_murder_arrest = pmin(p_murder_arrest,3),
+    p_felassault_arrest = pmin(p_felassault_arrest,3),
+    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
+    #p_famviol_arrest = pmin(p_famviol_arrest,3),
+    p_sex_arrest = pmin(p_sex_arrest,3),
+    p_weapons_arrest = pmin(p_weapons_arrest,3),
+    p_n_on_probation = pmin(p_n_on_probation,5),
+    p_current_on_probation = pmin(p_current_on_probation,5),
+    p_prob_revoke = pmin(p_prob_revoke,5),
+    p_recid_raw_noage)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-p_recid_raw_noage) %>% as.matrix(),
+  "label" = train %>% select(p_recid_raw_noage) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(p_recid_raw_noage ~ ., data=train)
+summary(mdl_lm)
+
+res_rmse[res_rmse$Group==1,]$lm = rmse(predict(mdl_lm, newdata=train), train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(46)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$p_recid_raw_noage
+
+res_rmse[res_rmse$Group==1,]$xgb = rmse(pred, actual) # ADJUST GROUP
+
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS violence raw remainder") +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(55656)
+
+mdl_rf = randomForest(
+  formula = p_recid_raw_noage ~ .,
+  data = train
+)
+
+res_rmse[res_rmse$Group==1,]$rf = rmse(mdl_rf$predicted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(p_recid_raw_noage ~ ., train, param_svm)
+
+res_rmse[res_rmse$Group==1,]$svm = rmse(mdl_svm$fitted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
+```
+
+
+
+
+
+
+## Group 2 models: predicting (raw - age polynomial) without using age variables but with race
+
+```{r}
+### Create group 2 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    #p_current_age,
+    p_age_first_offense,
+    p_juv_fel_count = pmin(p_juv_fel_count,2),
+    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
+    p_murder_arrest = pmin(p_murder_arrest,3),
+    p_felassault_arrest = pmin(p_felassault_arrest,3),
+    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
+    #p_famviol_arrest = pmin(p_famviol_arrest,3),
+    p_sex_arrest = pmin(p_sex_arrest,3),
+    p_weapons_arrest = pmin(p_weapons_arrest,3),
+    p_n_on_probation = pmin(p_n_on_probation,5),
+    p_current_on_probation = pmin(p_current_on_probation,5),
+    p_prob_revoke = pmin(p_prob_revoke,5),
+    race_black = if_else(race=="African-American",1,0),
+    race_white = if_else(race=="Caucasian",1,0),
+    race_hispanic = if_else(race=="Hispanic",1,0),
+    race_asian = if_else(race=="Asian",1,0),
+    race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
+    p_recid_raw_noage)
+
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-p_recid_raw_noage) %>% as.matrix(),
+  "label" = train %>% select(p_recid_raw_noage) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(p_recid_raw_noage ~ ., data=train)
+summary(mdl_lm)
+
+res_rmse[res_rmse$Group==2,]$lm = rmse(predict(mdl_lm, newdata=train), train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(390)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$p_recid_raw_noage
+
+res_rmse[res_rmse$Group==2,]$xgb = rmse(pred, actual) # ADJUST GROUP
+
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS violence raw remainder") +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(2728)
+
+mdl_rf = randomForest(
+  formula = p_recid_raw_noage ~ .,
+  data = train
+)
+
+res_rmse[res_rmse$Group==2,]$rf = rmse(mdl_rf$predicted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(p_recid_raw_noage ~ ., train, param_svm)
+
+res_rmse[res_rmse$Group==2,]$svm = rmse(mdl_svm$fitted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
+```
+
+
+
+
+
+
+
+
+## Group 3 models: predicting (raw - age polynomial) without using race but with age variables
+
+```{r}
+### Create group 3 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    p_current_age,
+    p_age_first_offense,
+    p_juv_fel_count = pmin(p_juv_fel_count,2),
+    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
+    p_murder_arrest = pmin(p_murder_arrest,3),
+    p_felassault_arrest = pmin(p_felassault_arrest,3),
+    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
+    #p_famviol_arrest = pmin(p_famviol_arrest,3),
+    p_sex_arrest = pmin(p_sex_arrest,3),
+    p_weapons_arrest = pmin(p_weapons_arrest,3),
+    p_n_on_probation = pmin(p_n_on_probation,5),
+    p_current_on_probation = pmin(p_current_on_probation,5),
+    p_prob_revoke = pmin(p_prob_revoke,5),
+    p_recid_raw_noage)
+
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-p_recid_raw_noage) %>% as.matrix(),
+  "label" = train %>% select(p_recid_raw_noage) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(p_recid_raw_noage ~ ., data=train)
+summary(mdl_lm)
+
+res_rmse[res_rmse$Group==3,]$lm = rmse(predict(mdl_lm, newdata=train), train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(34)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$p_recid_raw_noage
+
+res_rmse[res_rmse$Group==3,]$xgb = rmse(pred, actual) # ADJUST GROUP
+
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS violence raw remainder") +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+
+### Model 3: random forest
+
+```{r}
+set.seed(7872)
+
+mdl_rf = randomForest(
+  formula = p_recid_raw_noage ~ .,
+  data = train
+)
+
+res_rmse[res_rmse$Group==3,]$rf = rmse(mdl_rf$predicted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(p_recid_raw_noage ~ ., train, param_svm)
+
+res_rmse[res_rmse$Group==3,]$svm = rmse(mdl_svm$fitted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Group 4 models: predicting (raw - age polynomial) using age variables and race
+
+```{r}
+### Create group 4 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    p_current_age,
+    p_age_first_offense,
+    p_juv_fel_count = pmin(p_juv_fel_count,2),
+    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
+    p_murder_arrest = pmin(p_murder_arrest,3),
+    p_felassault_arrest = pmin(p_felassault_arrest,3),
+    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
+    #p_famviol_arrest = pmin(p_famviol_arrest,3),
+    p_sex_arrest = pmin(p_sex_arrest,3),
+    p_weapons_arrest = pmin(p_weapons_arrest,3),
+    p_n_on_probation = pmin(p_n_on_probation,5),
+    p_current_on_probation = pmin(p_current_on_probation,5),
+    p_prob_revoke = pmin(p_prob_revoke,5),
+    race_black = if_else(race=="African-American",1,0),
+    race_white = if_else(race=="Caucasian",1,0),
+    race_hispanic = if_else(race=="Hispanic",1,0),
+    race_asian = if_else(race=="Asian",1,0),
+    race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
+    p_recid_raw_noage)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-p_recid_raw_noage) %>% as.matrix(),
+  "label" = train %>% select(p_recid_raw_noage) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(p_recid_raw_noage ~ ., data=train)
+summary(mdl_lm)
+
+res_rmse[res_rmse$Group==4,]$lm = rmse(predict(mdl_lm, newdata=train), train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(11)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$p_recid_raw_noage
+
+res_rmse[res_rmse$Group==4,]$xgb = rmse(pred, actual) # ADJUST GROUP
+
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS violence raw remainder") +
+  ylab("Prediction of COMPAS violence raw remainder")+
+  theme(
+        text = element_text(size=12),
+        axis.text=element_text(size=12))
+```
+
+```{r}
+ggsave("Figures/rawScoreRemain_xgboost_violent.pdf",width = 4, height = 4, units = "in")
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+```{r}
+highlight = data.frame(
+  person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
+  screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
+  highlight = TRUE
+)
+
+df_plot = features_filt %>%
+  bind_cols(xgboost = predict(mdl_xgb, newdata=train_xgb)) %>%
+  left_join(highlight, by = c("person_id","screening_date")) %>%
+  mutate(highlight = if_else(is.na(highlight), FALSE, TRUE)) %>%
+  mutate(highlight = factor(if_else(highlight==TRUE,"In Table 5", "Not in Table 5"), levels=c("In Table 5", "Not in Table 5")))
+
+person_id_text_topright = c(8491, 8375, 1497)
+#person_id_text_topright = highlight$person_id
+person_id_text_topleft = c(5722, 11231)
+person_id_text_botright = c(799, 11312, 1284, 11414)
+person_id_text_botleft = c()
+
+ggplot() +
+  geom_point(aes(x=xgboost,y=p_recid_raw, color=highlight),  alpha = .3, data = filter(df_plot, highlight=="Not in Table 5")) +
+  geom_point(aes(x=xgboost,y=p_recid_raw, color=highlight),  data = filter(df_plot, highlight=="In Table 5")) +
+  theme_bw()+
+  geom_text(aes(x=xgboost,y=p_recid_raw,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topright & highlight=="In Table 5")) + 
+  geom_text(aes(x=xgboost,y=p_recid_raw,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topleft & highlight=="In Table 5")) + 
+  geom_text(aes(x=xgboost,y=p_recid_raw,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botright & highlight=="In Table 5")) + 
+  geom_text(aes(x=xgboost,y=p_recid_raw,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botleft & highlight=="In Table 5")) + 
+  xlab("Prediction of COMPAS violence raw remainder") +
+  ylab("COMPAS violence raw")+
+  theme(
+    text = element_text(size=12),
+    axis.text=element_text(size=12),
+    #legend.position = "top",
+    legend.position="none") +
+  scale_color_discrete(name = element_blank())
+```
+
+
+```{r}
+ggsave("Figures/xgboost_rawScore_violent.pdf",width = 4, height = 4, units = "in")
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(379)
+
+mdl_rf = randomForest(
+  formula = p_recid_raw_noage ~ .,
+  data = train
+)
+
+res_rmse[res_rmse$Group==4,]$rf = rmse(mdl_rf$predicted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(p_recid_raw_noage ~ ., train, param_svm)
+
+res_rmse[res_rmse$Group==4,]$svm = rmse(mdl_svm$fitted, train$p_recid_raw_noage) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
+```
+
+
+
+
+
+
+
+
+
+
+## Comparison
+
+```{r}
+knitr::kable(res_rmse)
+```
+
+
+
+

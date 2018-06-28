@@ -1,0 +1,726 @@
+---
+title: "Predicting General Recidivism"
+author: "Beau Coker"
+date: "6/21/2018"
+output: html_document
+---
+
+```{r, message=FALSE,warning=FALSE}
+library(xgboost)
+library(randomForest)
+library(tidyverse)
+library(lubridate)
+
+source('functions.r')
+```
+
+```{r}
+load("Table_construction.Rdata")
+```
+
+# General Recidivism
+
+## Generic stuff (applies to all models)
+
+```{r}
+### Add useful columns to features and apply row filters used for all models
+features_filt = features_before_on %>%
+  inner_join(
+    data_before %>% 
+      select(person_id, screening_date, people) %>%
+      unnest() %>%
+      select(person_id, screening_date, race, sex, name),
+    by = c("person_id","screening_date")
+  ) %>%
+  inner_join(features_on, by = c("person_id","screening_date")) %>%
+  inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
+  filter(!is.na(current_offense_date)) %>% # Filter 3
+  filter(screening_date <= current_offense_date_limit) %>% # Filter 4
+  mutate(recid_use = as.factor(recid), # Select recidivism or violent recidivism to use in this script 
+         decile_use = `Risk of Recidivism_decile_score`) # Select recidivism or violent recidivism decile score to use in this script
+  
+
+## Set parameters (each combination will be run)
+# xgboost
+param <- list(objective = "binary:logistic",
+              eval_metric = "error",
+              eta = c(.05,.1),
+              gamma = c(.5, 1), 
+              max_depth = c(2,5),
+              min_child_weight = c(5,10),
+              subsample = c(1),
+              colsample_bytree = c(1)
+)
+
+# svm
+param_svm = list(
+  type = 'C-classification',
+  cost = c(0.5,1,2),
+  epsilon = .1, # This parameter isn't used for classification but need to set anyway or it will break
+  gamma_scale = c(0.5,1,2)
+)
+```
+
+```{r}
+res_error = data.frame(Group = 1:5, glm = NA, xgb = NA, rf = NA, svm = NA)
+```
+
+
+
+
+## Group 1 models: predicting (raw score - age polynomial) without using age variables or race
+
+```{r}
+### Create group 1 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    #p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
+    recid_use)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-recid_use) %>% as.matrix(),
+  "label" = train %>% select(recid_use) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
+
+res_error[res_error$Group==1,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(923)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+
+res_error[res_error$Group==1,]$xgb = mean(if_else(pred>.5,1,0) != train$recid_use) # ADJUST GROUP
+
+data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(0,10)) +
+  ylim(c(0,10)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS Decile") +
+  ylab("Predicted Probablity * 10")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(784)
+
+mdl_rf = randomForest(
+  formula = recid_use ~ .,
+  data = train
+)
+
+res_error[res_error$Group==1,]$rf = mean(mdl_rf$predicted != train$recid_use) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
+
+res_error[res_error$Group==1,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+
+
+
+
+
+
+## Group 2 models: predicting (raw score - age polynomial) without using age variables but with race
+
+```{r}
+### Create group 2 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    #p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
+    race_black = if_else(race=="African-American",1,0),
+    race_white = if_else(race=="Caucasian",1,0),
+    race_hispanic = if_else(race=="Hispanic",1,0),
+    race_asian = if_else(race=="Asian",1,0),
+    race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
+    recid_use)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-recid_use) %>% as.matrix(),
+  "label" = train %>% select(recid_use) %>% as.matrix()
+)
+```
+
+
+### Model 1: Linear model
+
+```{r}
+mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
+
+res_error[res_error$Group==2,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(2381)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+
+res_error[res_error$Group==2,]$xgb = mean(if_else(pred>.5,1,0) != train$recid_use) # ADJUST GROUP
+
+data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(0,10)) +
+  ylim(c(0,10)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS Decile") +
+  ylab("Predicted Probablity * 10")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+
+### Model 3: random forest
+
+```{r}
+set.seed(5536)
+
+mdl_rf = randomForest(
+  formula = recid_use ~ .,
+  data = train
+)
+
+res_error[res_error$Group==2,]$rf = mean(mdl_rf$predicted != train$recid_use) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
+
+res_error[res_error$Group==2,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+
+
+
+
+## Group 3 models: predicting (raw score - age polynomial) without using race but with age variables
+
+```{r}
+### Create group 3 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
+    recid_use)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-recid_use) %>% as.matrix(),
+  "label" = train %>% select(recid_use) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
+
+res_error[res_error$Group==3,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(3638)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+
+res_error[res_error$Group==3,]$xgb = mean(if_else(pred>.5,1,0) != train$recid_use) # ADJUST GROUP
+
+data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(0,10)) +
+  ylim(c(0,10)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS Decile") +
+  ylab("Predicted Probablity * 10")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+```{r}
+test = features %>%
+  inner_join(
+    data_before %>% 
+      select(person_id, screening_date, people) %>%
+      unnest() %>%
+      select(person_id, screening_date, race, sex, name),
+    by = c("person_id","screening_date")
+  ) %>%
+  filter(!is.na(first_offense_date) & !is.na(current_offense_date)) %>%
+  #filter(screening_date <= current_offense_date_limit) %>% # Only people with valid recidivism values ### COMMENTED OUT FOR TEST SET
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% 
+  transmute(
+    person_id,
+    screening_date,
+    name,
+    decile_use = `Risk of Recidivism_decile_score`, # Select recidivism or violent recidivism to use in this script ## MAKE SURE TO ADJUST FOR GENERAL / VIOLENT
+    p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5)
+    #recid_use )
+  )
+
+## Format for xgboost
+test_xgb = xgb.DMatrix(
+  "data" = test %>% select(-person_id,-screening_date,-name,-decile_use) %>% as.matrix()
+)
+```
+
+
+```{r}
+highlight = data.frame(
+  person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
+  screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
+  highlight = TRUE
+)
+
+df_plot = test %>%
+  bind_cols(pred = predict(mdl_xgb, newdata=test_xgb)) %>%
+  left_join(highlight, by = c("person_id","screening_date")) %>%
+  mutate(highlight = if_else(is.na(highlight), FALSE, TRUE)) %>%
+  mutate(highlight = factor(if_else(highlight==TRUE,"In Table 5", "Not in Table 5"), levels=c("In Table 5", "Not in Table 5")))
+
+person_id_text_topright = c(11231,7997,10553,11414,3145,1497,1515,1638,3291,799,10774)
+#person_id_text_topright = highlight$person_id
+person_id_text_topleft = c()
+person_id_text_botright = c(6886,8375,6337,1284,5722,8200,8491,11312,1394)
+person_id_text_botleft = c()
+
+ggplot() +
+  geom_point(aes(x=pred,y=as.factor(decile_use), color=highlight),  alpha = .3, data = filter(df_plot, highlight=="Not in Table 5")) +
+  geom_point(aes(x=pred,y=as.factor(decile_use), color=highlight),  data = filter(df_plot, highlight=="In Table 5")) +
+  theme_bw()+
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topright & highlight=="In Table 5")) + 
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topleft & highlight=="In Table 5")) + 
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botright & highlight=="In Table 5")) + 
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botleft & highlight=="In Table 5")) + 
+  xlab("Predicted probabilty of general recidivism") +
+  ylab("COMPAS general decile")+
+  theme(
+    text = element_text(size=12),
+    axis.text=element_text(size=12),
+    #legend.position = "top",
+    legend.position="none") +
+  scale_color_discrete(name = element_blank()) +
+  xlim(0,1)
+```
+
+```{r}
+ggsave("Figures/xgboostRecid_decile_general.pdf",width = 4, height = 4, units = "in")
+```
+
+
+### Model 3: random forest
+
+```{r}
+set.seed(9919)
+
+mdl_rf = randomForest(
+  formula = recid_use ~ .,
+  data = train
+)
+
+res_error[res_error$Group==3,]$rf = mean(mdl_rf$predicted != train$recid_use) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
+
+res_error[res_error$Group==3,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+
+
+
+
+
+
+
+
+## Group 4 models: predicting (raw score - age polynomial) using age variables and race
+
+```{r}
+### Create group 2 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
+    race_black = if_else(race=="African-American",1,0),
+    race_white = if_else(race=="Caucasian",1,0),
+    race_hispanic = if_else(race=="Hispanic",1,0),
+    race_asian = if_else(race=="Asian",1,0),
+    race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
+    recid_use)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-recid_use) %>% as.matrix(),
+  "label" = train %>% select(recid_use) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
+
+res_error[res_error$Group==4,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(11212)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+
+res_error[res_error$Group==4,]$xgb = mean(if_else(pred>.5,1,0) != train$recid_use) # ADJUST GROUP
+
+data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(0,10)) +
+  ylim(c(0,10)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS Decile") +
+  ylab("Predicted Probablity * 10")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(89892)
+
+mdl_rf = randomForest(
+  formula = recid_use ~ .,
+  data = train
+)
+
+res_error[res_error$Group==4,]$rf = mean(mdl_rf$predicted != train$recid_use) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
+
+res_error[res_error$Group==4,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+
+
+
+
+
+
+
+
+## Group 5 models: test
+
+```{r}
+### Create group 3 training data
+
+## Select features and round count features
+train = features_filt %>%
+  transmute(
+    p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30,
+    p_prison,
+    p_probation,
+    recid_use)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-recid_use) %>% as.matrix(),
+  "label" = train %>% select(recid_use) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
+
+res_error[res_error$Group==5,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(11212)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+
+res_error[res_error$Group==5,]$xgb = mean(if_else(pred>.5,1,0) != train$recid_use) # ADJUST GROUP
+
+data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(0,10)) +
+  ylim(c(0,10)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("COMPAS Decile") +
+  ylab("Predicted Probablity * 10")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+```{r}
+test = features %>%
+  inner_join(
+    data_before %>% 
+      select(person_id, screening_date, people) %>%
+      unnest() %>%
+      select(person_id, screening_date, race, sex, name),
+    by = c("person_id","screening_date")
+  ) %>%
+  filter(!is.na(first_offense_date) & !is.na(current_offense_date)) %>%
+  #filter(screening_date <= current_offense_date_limit) %>% # Only people with valid recidivism values ### COMMENTED OUT FOR TEST SET
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% 
+  transmute(
+    person_id,
+    screening_date,
+    name,
+    decile_use = `Risk of Recidivism_decile_score`, # Select recidivism or violent recidivism to use in this script ## MAKE SURE TO ADJUST FOR GENERAL / VIOLENT
+    p_current_age,
+    p_age_first_offense,
+    p_charge,
+    p_jail30,
+    p_prison,
+    p_probation
+    #recid_use )
+  )
+
+## Format for xgboost
+test_xgb = xgb.DMatrix(
+  "data" = test %>% select(-person_id,-screening_date,-name,-decile_use) %>% as.matrix()
+)
+```
+
+
+```{r}
+highlight = data.frame(
+  person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
+  screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
+  highlight = TRUE
+)
+
+df_plot = test %>%
+  bind_cols(pred = predict(mdl_xgb, newdata=test_xgb)) %>%
+  left_join(highlight, by = c("person_id","screening_date")) %>%
+  mutate(highlight = if_else(is.na(highlight), FALSE, TRUE)) %>%
+  mutate(highlight = factor(if_else(highlight==TRUE,"In Table 5", "Not in Table 5"), levels=c("In Table 5", "Not in Table 5")))
+
+person_id_text_topright = c(11231,7997,10553,11414,3145,1497,1515,1638,3291,799,10774)
+#person_id_text_topright = highlight$person_id
+person_id_text_topleft = c()
+person_id_text_botright = c(6886,8375,6337,1284,5722,8200,8491,11312,1394)
+person_id_text_botleft = c()
+
+ggplot() +
+  geom_point(aes(x=pred,y=as.factor(decile_use), color=highlight),  alpha = .3, data = filter(df_plot, highlight=="Not in Table 5")) +
+  geom_point(aes(x=pred,y=as.factor(decile_use), color=highlight),  data = filter(df_plot, highlight=="In Table 5")) +
+  theme_bw()+
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topright & highlight=="In Table 5")) + 
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topleft & highlight=="In Table 5")) + 
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botright & highlight=="In Table 5")) + 
+  geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botleft & highlight=="In Table 5")) + 
+  xlab("Predicted probabilty of general recidivism") +
+  ylab("COMPAS general decile")+
+  theme(
+    text = element_text(size=12),
+    axis.text=element_text(size=12),
+    #legend.position = "top",
+    legend.position="none") +
+  scale_color_discrete(name = element_blank()) +
+  xlim(0,1)
+```
+
+
+### Model 3: random forest
+
+```{r}
+set.seed(89892)
+
+mdl_rf = randomForest(
+  formula = recid_use ~ .,
+  data = train
+)
+
+res_error[res_error$Group==5,]$rf = mean(mdl_rf$predicted != train$recid_use) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
+
+res_error[res_error$Group==5,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+
+
+
+## Comparison
+
+```{r}
+knitr::kable(res_error)
+```
+
+
+
+
+
+
