@@ -1,0 +1,105 @@
+---
+title: "age_poly"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Load Table_construction.Rdata to get features table
+```{r}
+library(tidyverse)
+library(magrittr)
+load("Table_construction.RData")
+```
+
+Age polynomial for COMPAS Risk of Violent Recidivism score
+```{r}
+age_subset=features%>%
+           select(p_current_age, `Risk of Violence_raw_score`)%>%
+           filter(p_current_age>18&p_current_age<=70)%>%
+           group_by(p_current_age)%>%
+              arrange(`Risk of Violence_raw_score`,.by_group=TRUE)%>%
+              top_n(n=-1,wt=`Risk of Violence_raw_score`)
+            
+
+fit=lm(log10(age_subset$`Risk of Violence_raw_score`+5)~log10(age_subset$p_current_age))
+
+model=lm(age_subset$`Risk of Violence_raw_score`~poly(age_subset$p_current_age,4))
+model
+
+predicted=predict(model,newdata=data.frame(p_current_age=age_subset$p_current_age))
+age_subset=cbind(age_subset,pred= predicted)
+
+age_poly =function(x){ 0.000000407808994851*x^4 - 0.000088176770770443*x^3 + 0.007436939324225960*x^2 - 0.316106532730131000*x + 1.553988869973560000}
+
+age_poly2=function(x){
+  #have yet to fill out
+}
+
+ggplot(data=features, aes(x=p_current_age, y=`Risk of Violence_raw_score`)) +
+     geom_point(shape=1)+  
+
+     ggtitle("Age at Current Screening vs COMPAS Violent\nRecidivism Score (modelled w/deg4 polynomial)") +
+     stat_function(fun = age_poly, colour="blue",size=.5) +  
+     geom_line(data=age_subset,aes(x=p_current_age, y=predicted),colour='red',size=.5) +
+
+     xlim(18,70)+
+     xlab("Age at Current Screening") +
+     ylab('Risk of Violent Recidivism Raw') +
+     theme(text=element_text(size=18),
+           axis.ticks=element_line(size=1),
+           axis.ticks.length = unit(3, "mm"))
+
+```
+
+Age polynomial for COMPAS Risk of Recidivism score
+```{r}
+age_recid=features%>%
+           select(p_current_age, `Risk of Recidivism_raw_score`)%>%
+           filter(p_current_age>18&p_current_age<=70)%>%
+           group_by(p_current_age)%>%
+              arrange(`Risk of Recidivism_raw_score`,.by_group=TRUE)%>%
+              top_n(n=-1,wt=`Risk of Recidivism_raw_score`)
+# write.csv(age_recid,"age_recid.csv")
+
+ggplot(age_recid, aes(x=p_current_age, y=`Risk of Recidivism_raw_score`)) +
+     geom_point(shape=1)  +
+     ggtitle("Regression Line Age vs Recid Score") +
+     xlim(18,70)
+
+age_poly_recid = function(x){0.000492285131636128000*x^2 - 0.0775341320826139000*x + 0.0305011936304372000}
+
+#plotting the regression line on top of ALL points
+ggplot(features, aes(x=p_current_age, y=`Risk of Recidivism_raw_score`)) +
+     geom_point(shape=1)  +
+     ggtitle("Age at Current Screening vs COMPAS Recidivism\nScore (modelled with quadratic polynomial)") +
+     stat_function(fun = age_poly_recid, colour="blue",size=1.3) +  
+     xlim(18,70) +
+     xlab("Age at Current Screening") +
+     ylab("Risk of Recidivism Raw")+
+     theme(text=element_text(size=17),
+           axis.ticks=element_line(size=1),
+           axis.ticks.length = unit(3, "mm"))
+
+```
+
+Violence History subscale plot
+Items in the violence scale: 
+```{r}
+ggplot(features, aes(x=p_juv_fel_count+p_felprop_violarrest+p_murder_arrest+p_felassault_arrest+p_misdemassault_arrest+p_famviol_arrest+p_sex_arrest+p_weapons_arrest, y=`Risk of Violence_raw_score`-age_poly(p_current_age))) +
+     geom_point(shape=1)  +
+     ggtitle("COMPAS Violent Recidivism Remainder vs\nViolence History") +
+     xlab("Total Violence History Items") +
+     ylab("COMPAS Violent Recidivism\nRemainder")+
+     xlim(0,25) +
+     theme(text=element_text(size=18),
+           axis.ticks=element_line(size=1),
+           axis.ticks.length = unit(3, "mm"))
+
+```
+
+
+
