@@ -20,6 +20,28 @@ load("Table_construction.Rdata")
 
 # General Recidivism
 
+## Fit age polynomial
+
+```{r}
+ age_subset = features %>%
+  filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
+  select(p_current_age, p_recid_raw = `Risk of Recidivism_raw_score`) %>%
+  filter(p_current_age > 18 & p_current_age <= 70) %>% # Filter 5
+  group_by(p_current_age) %>%
+  arrange(p_recid_raw, .by_group=TRUE) %>%
+  top_n(n=-1, wt=p_recid_raw) # Filter 6
+
+mdl_age = lm(p_recid_raw ~ 
+               I(p_current_age^2) + 
+               p_current_age, 
+             data=age_subset)
+
+
+summary(mdl_age)
+print("Coefficients:")
+sprintf("%.20e",mdl_age$coefficients) # More precision for paper
+```
+
 ## Generic stuff (applies to all models)
 
 ```{r}
@@ -37,7 +59,7 @@ features_filt = features %>%
   filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
   filter(!is.na(current_offense_date)) %>% # Filter 3
   mutate(p_recid_raw = `Risk of Recidivism_raw_score`,
-         age_poly = 0.000492285131636128000*p_current_age^2 - 0.0775341320826139000*p_current_age + 0.0305011936304372000,
+         age_poly = predict(mdl_age, newdata=data.frame(p_current_age=p_current_age)),
          p_recid_raw_noage = p_recid_raw - age_poly)
 
 ## Set parameters (each combination will be run)
@@ -68,20 +90,21 @@ res_rmse = data.frame(Group = 1:5, lm = NA, xgb = NA, rf = NA, svm = NA)
 
 ```{r}
 ## Age polynomial
-features_filt %>%
-  ggplot()+
-  geom_point(aes(x=p_current_age, p_recid_raw,color="b"), alpha=.3) +
-  geom_line(aes(x=p_current_age, age_poly,color="a")) +
+xmin = 18
+xmax = 70
+xx = seq(xmin,xmax, length.out=1000)
+
+ggplot()+
+  geom_point(aes(x=p_current_age, p_recid_raw, color="b"), alpha=.3, data=features_filt) +
+  geom_line(aes(x=xx, predict(mdl_age, newdata=data.frame(p_current_age=xx)), color="a")) +
   theme_bw()+
-  xlim(18,70)+
+  xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("COMPAS general raw") +
-  theme(
-        text = element_text(size=12),
+  ylab("COMPAS violence raw") +
+  theme(text = element_text(size=12),
         axis.text=element_text(size=12),
         legend.position="none")
 ```
-
 
 ```{r}
 ggsave("Figures/age_agePoly_general.pdf",width = 3.5, height = 2.5, units = "in")
