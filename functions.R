@@ -1,9 +1,7 @@
 compute_features = function(person_id,screening_date,first_offense_date,current_offense_date,
                             arrest,charge,jail,prison,prob,people) {
   ### Computes features (e.g., number of priors) for each person_id/screening_date.
-  if (person_id==8){
-    a=1
-  }
+
   # pmap coerces dates to numbers so convert back to date.
   first_offense_date = as_date(first_offense_date)
   screening_date = as_date(screening_date)
