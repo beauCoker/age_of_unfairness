@@ -35,7 +35,7 @@ There are a few different groups of features used in predicting the COMPAS raw s
 
 These groups are referenced in the code.
 
-## Row Filtering
+## Row filtering
 
 Depending on the analysis, some observations are discarded. For example, some individuals were given a COMPAS score less than two years before the data was pulled, so we cannot asses whether or not they committed a new crime within two years. At most there are 12,381 unique people / COMPAS screening date combinations. The following filters are used at some point in the analysis: 
 *	**Filter 1:** Remove observations with -1 decile scores (removes 15 observations).
