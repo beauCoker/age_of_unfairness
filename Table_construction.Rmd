@@ -21,10 +21,10 @@ source('functions.R')
 ### Local file paths
 
 # ProPublica analysis
-f_propub = "../compas-analysis/"
+f_propub = "Raw_data/compas-analysis/"
 
 # Data we have pulled
-f_our_data = "../our_data/"
+f_our_data = "Raw_data/probation/"
 ```
 
 ```{r}
