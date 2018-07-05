@@ -22,6 +22,8 @@ These data sources are needed to run *Table_construction.rdata*. Note that the f
 
 *	*functions.r* includes a number of custom helper functions.
 
+*	*app.r* is a Shiny app (see below).
+
 ## Groups of features
 
 There are a few different groups of features used in predicting the COMPAS raw score remainders and two-year recidivism:
@@ -53,7 +55,11 @@ The following results in the paper use the listed filters:
 *	Recidivism prediction, logistic regression with age, sex, and recidivism, and probability of reoffending plot: Filters 1, 3, 4.
 
 
+## Shiny application
 
+We created a Shiny application to display criminal history data, COMPAS scores, and the features we constructed for each individual in the dataset. To choose an individual, type a person identification number and select a COMPAS screening date. 
+
+The Charge, Arrest, Jail, Prison, and COMPAS tabs show data made available by ProPublica. Information is separated by when it occured in relation to the COMPAS screening date (before the date, on the date, and after the date). The Features tab shows our constructed features. There is also some useful information in the Profile tab. 
 
 
 
