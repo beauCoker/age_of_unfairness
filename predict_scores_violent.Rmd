@@ -128,20 +128,30 @@ ggsave("Figures/priors_rawScoreRemain_violent.pdf",width = 3.5, height = 3.5, un
 
 ```{r}
 ## Total violence history items
-ggplot(features_filt) +
+features_filt %>%
+  mutate(
+    p_juv_fel_count = pmin(p_juv_fel_count,2),
+    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
+    p_murder_arrest = pmin(p_murder_arrest,3),
+    p_felassault_arrest = pmin(p_felassault_arrest,3),
+    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
+    #p_famviol_arrest = pmin(p_famviol_arrest,3),
+    p_sex_arrest = pmin(p_sex_arrest,3),
+    p_weapons_arrest = pmin(p_weapons_arrest,3)) %>%
+  ggplot() +
   geom_point(aes(y = p_recid_raw_noage,
                  x=p_juv_fel_count+
                    p_felprop_violarrest+
                    p_murder_arrest+
                    p_felassault_arrest+
                    p_misdemassault_arrest+
-                   p_famviol_arrest+
+                   #p_famviol_arrest+
                    p_sex_arrest+
                    p_weapons_arrest),
              alpha=.3)  +
   xlab("Total Violence History items") +
   ylab("COMPAS violence raw remainder")+
-  xlim(0,25) +
+  xlim(0,15) +
   theme_bw() +
   theme(text = element_text(size=12),
         axis.text=element_text(size=12))
