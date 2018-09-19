@@ -51,40 +51,35 @@ Depending on the analysis, some observations are discarded. For example, some in
 The following results in the paper use the listed filters:
 #### General and Violent Recidivism Results
 
-*f(age) and f(viol_age) fitting + plot:*
+*	*f(age) and f(viol_age) fitting + plot:*
 Filters 1, 5
-
-*Logistic regression AND probability of reoffending plot:*
+*	*Logistic regression AND probability of reoffending plot:*
 Filters 1, 3, 4
-
-*Any COMPAS score prediction (whether or not reversed engineered components subtracted):*
+*	*Any COMPAS score prediction (whether or not reversed engineered components subtracted):*
 Filters 1, 3
-
-*Any recidivism prediction:*
+*	*Any recidivism prediction:*
 Filters 1, 3, 4
 
 
 #### General Recidivism Results
 
-*raw_score - f(age) vs. number or priors AND vs. criminal involvement plot:*
+*	*raw_score - f(age) vs. number or priors AND vs. criminal involvement plot:*
 Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
-
-*TPR/FPR plot:*
+*	*TPR/FPR plot:*
 Filters 1, 2, 3
 
 
 #### Violent Recidivism Results ————
 
-*raw_score - f(age) vs. history of violence fitting + plot:*
+*	*raw_score - f(age) vs. history of violence fitting + plot:*
 Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
-
-*raw_score - f(age) - g(vio_hist) vs. history of noncompliance plot:*
+*	*raw_score - f(age) - g(vio_hist) vs. history of noncompliance plot:*
 Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
 
 
 #### Other Results
 
-*Age histograms AND mean/median age statistics:*
+*	*Age histograms AND mean/median age statistics:*
 Filters 1, 2
 
 
