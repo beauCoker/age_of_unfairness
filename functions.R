@@ -303,7 +303,7 @@ fit_svm <- function(formula, train, param) {
   ## Loop through the different parameters sets
   for (i_param in 1:n_param) {
     
-    mdcv = e1071::svm(formula = formula, 
+    mdcv = suppressWarnings(e1071::svm(formula = formula, 
                       data = train, 
                       type = param$type,
                       kernel = 'radial',
@@ -311,7 +311,7 @@ fit_svm <- function(formula, train, param) {
                       epsilon = param_df$epsilon[i_param],
                       cost = param_df$cost[i_param],
                       cross = 5,
-                      scale = TRUE)
+                      scale = TRUE))
     
     if(reg_or_class == "reg"){
       performance[i_param] = mdcv$tot.MSE
@@ -331,7 +331,7 @@ fit_svm <- function(formula, train, param) {
   print("Best parameters:")
   print(t(param_df[i_param_best,]))
   
-  mdl_best = e1071::svm(formula = formula, 
+  mdl_best = suppressWarnings(e1071::svm(formula = formula, 
                         data = train, 
                         type = param$type,
                         kernel = 'radial',
@@ -339,7 +339,7 @@ fit_svm <- function(formula, train, param) {
                         epsilon = param_df$epsilon[i_param_best],
                         cost = param_df$cost[i_param_best],
                         cross = 5,
-                        scale = TRUE)
+                        scale = TRUE))
   
   return(mdl_best)
 }
