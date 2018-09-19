@@ -69,7 +69,7 @@ Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
 Filters 1, 2, 3
 
 
-#### Violent Recidivism Results ————
+#### Violent Recidivism Results
 
 *	*raw_score - f(age) vs. history of violence fitting + plot:*
 Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
