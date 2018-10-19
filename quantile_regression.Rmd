@@ -1,0 +1,252 @@
+---
+title: "Quantile Regression"
+author: "Beau Coker"
+date: "10/19/2018"
+output: html_document
+---
+
+```{r, message=FALSE,warning=FALSE}
+library(xgboost)
+library(randomForest)
+library(tidyverse)
+library(lubridate)
+
+#source('functions.r')
+```
+
+## Violence score
+
+```{r}
+load("Table_construction.Rdata")
+```
+
+```{r}
+features = features %>%
+  # Add other useful information:
+  inner_join(
+    data_before %>% 
+      select(person_id, screening_date, people) %>%
+      unnest() %>%
+      select(person_id, screening_date, race, sex, name),
+    by = c("person_id","screening_date")
+  ) %>%
+  inner_join(features_on, by = c("person_id","screening_date")) %>%
+  inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  
+  # Create as many features as possible:
+  mutate(
+    raw_score = `Risk of Violence_raw_score`, # Adjust for violent/general
+    decile_score = `Risk of Violence_decile_score`, # Adjust for violent/general
+    p_juv_fel_count = pmin(p_juv_fel_count,2),
+    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
+    p_murder_arrest = pmin(p_murder_arrest,3),
+    p_felassault_arrest = pmin(p_felassault_arrest,3),
+    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
+    #p_famviol_arrest = pmin(p_famviol_arrest,3),
+    p_sex_arrest = pmin(p_sex_arrest,3),
+    p_weapons_arrest = pmin(p_weapons_arrest,3),
+    p_n_on_probation = pmin(p_n_on_probation,5),
+    p_current_on_probation = pmin(p_current_on_probation,5),
+    p_prob_revoke = pmin(p_prob_revoke,5),
+    race_black = if_else(race=="African-American",1,0),
+    race_white = if_else(race=="Caucasian",1,0),
+    race_hispanic = if_else(race=="Hispanic",1,0),
+    race_asian = if_else(race=="Asian",1,0),
+    race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
+    
+    # Subscales:
+    vio_hist = p_juv_fel_count+
+      p_felprop_violarrest+
+      p_murder_arrest+
+      p_felassault_arrest+
+      p_misdemassault_arrest+
+      #p_famviol_arrest+
+      p_sex_arrest+
+      p_weapons_arrest,
+    history_noncomp=p_prob_revoke+
+      p_probation+p_current_on_probation+
+      p_n_on_probation,
+    
+    # Filters (TRUE for obserations to keep)
+    filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, # Filter 1
+    filt3 = !is.na(current_offense_date), # Filter 3
+    filt4 = current_offense_date <= current_offense_date_limit, # Filter 4
+    filt5 = p_current_age > 18 & p_current_age <= 70 # Filter 5
+  )
+```
+
+```{r}
+xmin = 18
+xmax = 70 
+quan_list = c(0,.25,.5,.75, 1) # Do quantile regression for each of these values
+
+features_f_age = features %>%
+  filter(filt1,filt5) %>%
+  select(p_current_age, raw_score)
+
+# Group scores by age
+scores = features_f_age %>%
+  group_by(p_current_age) %>%
+  nest(.key="scores") %>%
+  mutate(n = map(scores,nrow)) %>%
+  unnest(n)
+
+# Extract observed score quantiles for each age
+score_quan = map_dfc(quan_list, function(quan) {
+  scores %>%
+    mutate(score_quan = map(scores, ~quantile(.x$raw_score,probs=quan))) %>%
+    unnest(score_quan) %>%
+    select(score_quan)
+}
+)
+
+# For each quantile, regress observed score quantiles on age
+quan_fits = map(score_quan,
+         ~ lm(y ~ I(x^4) + I(x^3) + I(x^2) + x,
+              data=data.frame(y = .x , x=scores$p_current_age))
+)
+
+# Evaluate fitted function on range of scores
+p_current_age_line = seq(xmin,xmax, length.out=1000)
+score_quan_line = map_dfc(quan_fits, ~ predict(.x, newdata=data.frame(x=p_current_age_line)))
+
+# Append ages
+score_quan = score_quan %>% mutate(p_current_age = scores$p_current_age)
+score_quan_line = score_quan_line %>% mutate(p_current_age=p_current_age_line)
+
+# Reshape to long format for plotting
+score_quan = gather(score_quan, key="quan",value="quan_score",score_quan:score_quan4)
+score_quan_line = gather(score_quan_line, key="quan",value="quan_score",score_quan:score_quan4)
+```
+
+```{r}
+ggplot()+
+  geom_point(aes(x=p_current_age, raw_score), color="#808080",alpha=.1, data=features_f_age) +
+  geom_point(aes(x=p_current_age, y=quan_score, color=quan),alpha=1, data=score_quan) +
+  geom_line(aes(x=p_current_age, y=quan_score, color=quan),alpha=1, data=score_quan_line) +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at COMPAS screening date") +
+  ylab("Violent score") +
+theme(text = element_text(size=12),
+      axis.text=element_text(size=12),
+      legend.position="top") +
+  scale_color_discrete(name="Quantile",labels=as.character(quan_list))
+```
+
+```{r}
+ggsave("Figures/quantiles_violent.pdf",width = 5, height = 3, units = "in")
+```
+
+
+## General score
+
+```{r}
+rm(list=ls())
+load("Table_construction.Rdata")
+```
+
+```{r}
+features = features %>%
+  # Add other useful information:
+  inner_join(
+    data_before %>% 
+      select(person_id, screening_date, people) %>%
+      unnest() %>%
+      select(person_id, screening_date, race, sex, name),
+    by = c("person_id","screening_date")
+  ) %>%
+  inner_join(features_on, by = c("person_id","screening_date")) %>%
+  inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  
+  # Create as many features as possible:
+  mutate(
+    raw_score = `Risk of Recidivism_raw_score`, # Adjust for violent/general
+    decile_score = `Risk of Recidivism_decile_score`, # Adjust for violent/general
+    p_jail30 = pmin(p_jail30,5),
+    p_prison30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
+    race_black = if_else(race=="African-American",1,0),
+    race_white = if_else(race=="Caucasian",1,0),
+    race_hispanic = if_else(race=="Hispanic",1,0),
+    race_asian = if_else(race=="Asian",1,0),
+    race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
+    
+    # Subscales:
+    crim_inv = p_charge+
+      p_jail30+
+      p_prison+
+      p_probation,
+    
+    # Filters (TRUE for obserations to keep)
+    filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, # Filter 1
+    filt3 = !is.na(current_offense_date), # Filter 3
+    filt4 = current_offense_date <= current_offense_date_limit, # Filter 4
+    filt5 = p_current_age > 18 & p_current_age <= 70 # Filter 5
+  )
+```
+
+
+```{r}
+xmin = 18
+xmax = 70 
+quan_list = c(0,.25,.5,.75, 1) # Do quantile regression for each of these values
+
+features_f_age = features %>%
+  filter(filt1,filt5) %>%
+  select(p_current_age, raw_score)
+
+# Group scores by age
+scores = features_f_age %>%
+  group_by(p_current_age) %>%
+  nest(.key="scores") %>%
+  mutate(n = map(scores,nrow)) %>%
+  unnest(n)
+
+# Extract observed score quantiles for each age
+score_quan = map_dfc(quan_list, function(quan) {
+  scores %>%
+    mutate(score_quan = map(scores, ~quantile(.x$raw_score,probs=quan))) %>%
+    unnest(score_quan) %>%
+    select(score_quan)
+}
+)
+
+# For each quantile, regress observed score quantiles on age
+quan_fits = map(score_quan,
+         ~ lm(y ~ I(x^2) + x, 
+              data=data.frame(y = .x , x=scores$p_current_age))
+)
+
+# Evaluate fitted function on range of scores
+p_current_age_line = seq(xmin,xmax, length.out=1000)
+score_quan_line = map_dfc(quan_fits, ~ predict(.x, newdata=data.frame(x=p_current_age_line)))
+
+# Append ages
+score_quan = score_quan %>% mutate(p_current_age = scores$p_current_age)
+score_quan_line = score_quan_line %>% mutate(p_current_age=p_current_age_line)
+
+# Reshape to long format for plotting
+score_quan = gather(score_quan, key="quan",value="quan_score",score_quan:score_quan4)
+score_quan_line = gather(score_quan_line, key="quan",value="quan_score",score_quan:score_quan4)
+```
+
+```{r}
+ggplot()+
+  geom_point(aes(x=p_current_age, raw_score), color="#808080",alpha=.1, data=features_f_age) +
+  geom_point(aes(x=p_current_age, y=quan_score, color=quan),alpha=1, data=score_quan) +
+  geom_line(aes(x=p_current_age, y=quan_score, color=quan),alpha=1, data=score_quan_line) +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at COMPAS screening date") +
+  ylab("General score") +
+theme(text = element_text(size=12),
+      axis.text=element_text(size=12),
+      legend.position="top") +
+  scale_color_discrete(name="Quantile",labels=as.character(quan_list))
+```
+
+```{r}
+ggsave("Figures/quantiles_general.pdf",width = 5, height = 3, units = "in")
+```
