@@ -13,7 +13,7 @@ library(lubridate)
 library(reshape2)
 library(readr)
 library(purrr)
-
+library(RSQLite)
 source('functions.R')
 ```
 
@@ -153,6 +153,15 @@ key_current_offense = compas_df_wide %>%
   group_by(person_id, screening_date) %>%
   summarize(current_offense_date = max(offense_date))
 
+#Flag individuals who have multiple offenses in 30 days prior to screening
+key_offenses_within_30 = compas_df_wide %>%
+  left_join(charge_df, by="person_id") %>% # Duplicate charges for each screening_date
+  mutate(days_offense_screening = floor(as.numeric(as.period(interval(offense_date,screening_date)), "days")),
+         within_30 = ifelse(days_offense_screening >= 0 & days_offense_screening <=30, 1,0)) %>%
+  group_by(person_id, screening_date) %>% 
+  summarize(offenses_within_30 = sum(within_30))
+
+
 # Compute last current offense date allowed (two years before when data pulled)
 current_offense_date_limit = max(charge_df$offense_date) - years(2)
 
@@ -160,7 +169,10 @@ current_offense_date_limit = max(charge_df$offense_date) - years(2)
 key_events = compas_df_wide %>%
   select(person_id, screening_date) %>%
   left_join(key_first_offense, by = c("person_id","screening_date")) %>%
-  left_join(key_current_offense, by = c("person_id","screening_date"))
+  left_join(key_current_offense, by = c("person_id","screening_date")) %>%
+  left_join(key_offenses_within_30, by = c("person_id","screening_date")) %>%
+  mutate(before_cutoff_date = if_else(is.na(current_offense_date),screening_date,current_offense_date))
+
 ```
 
 ```{r}
@@ -195,6 +207,9 @@ prisonhistory_df = prisonhistory_df %>%
   mutate(sentence_days = floor(as.numeric(as.period(interval(in_custody,out_custody)), "days")))
 ```
 
+
+
+
 Now we group each ProPublica table into a nested dataframe. Each row represents a person_id/screening_date combination. The dataframe nested in each row includes all information in the corresponding ProPublica table that is relevant to the compas score of that person_id/screening_date combination. By using a left_join on person_id we duplicate the information in the ProPublica table for each screening_date (since there can be multiple matches). The prefix `dyn` means the information can change over time (e.g., prior offenses), while the prefix `stat` means the information should not change (e.g., date of birth).
 
 #### Before screening_date
@@ -202,29 +217,29 @@ Now we group each ProPublica table into a nested dataframe. Each row represents 
 ```{r}
 dyn_arrest = key_events %>%
   left_join(casearrest_df, by="person_id") %>% # Duplicates features for different screening_dates
-  filter(arrest_date < current_offense_date) %>% # Only charges before the current offense should matter
-  select(-first_offense_date, -current_offense_date) %>% # Don't need these here now
+  filter(arrest_date < before_cutoff_date) %>% # Only charges before the current offense should matter
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% # Don't need these here now
   group_by(person_id, screening_date) %>%
   nest(.key="arrest")
 
 dyn_charge = key_events %>%
   left_join(charge_df, by="person_id") %>% 
-  filter(offense_date < current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>%
+  filter(offense_date < before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -before_cutoff_date) %>%
   group_by(person_id, screening_date) %>%
   nest(.key="charge")
 
 dyn_jail = key_events %>%
   left_join(jailhistory_df, by="person_id") %>% 
-  filter(in_custody < current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody < before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="jail") 
 
 dyn_prison = key_events %>%
   left_join(prisonhistory_df, by="person_id") %>% 
-  filter(in_custody < current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody < before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prison") 
 
@@ -232,13 +247,13 @@ dyn_prob = key_events %>%
   left_join(prob_df, by="person_id") %>% 
   #filter(EventDate < current_offense_date) %>% # Don't filter out probation events past screening_date since probation ending after screening_date may be useful to know ?
   filter(!(is.na(EventDate))) %>% # Need this if no date filtering
-  select(-first_offense_date, -current_offense_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prob") 
 
 stat_people = key_events %>%
   left_join(people_df, by="person_id") %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="people") 
 
@@ -270,29 +285,29 @@ If the `first_offense_date` is equal to the `current_offense_date`, then they sh
 ```{r}
 dyn_arrest = key_events %>%
   left_join(casearrest_df, by="person_id") %>% # Duplicates features for different screening_dates
-  filter(arrest_date <= current_offense_date) %>% # Only charges before the current offense should matter
-  select(-first_offense_date, -current_offense_date) %>% # Don't need these here now
+  filter(arrest_date <= before_cutoff_date) %>% # Only charges before the current offense should matter
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% # Don't need these here now
   group_by(person_id, screening_date) %>%
   nest(.key="arrest")
 
 dyn_charge = key_events %>%
   left_join(charge_df, by="person_id") %>% 
-  filter(offense_date <= current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>%
+  filter(offense_date <= before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>%
   group_by(person_id, screening_date) %>%
   nest(.key="charge")
 
 dyn_jail = key_events %>%
   left_join(jailhistory_df, by="person_id") %>% 
-  filter(in_custody <= current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody <= before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="jail") 
 
 dyn_prison = key_events %>%
   left_join(prisonhistory_df, by="person_id") %>% 
-  filter(in_custody <= current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody <= before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prison") 
 
@@ -300,13 +315,13 @@ dyn_prob = key_events %>%
   left_join(prob_df, by="person_id") %>% 
   #filter(EventDate < current_offense_date) %>% # Don't filter out probation events past screening_date since probation ending after screening_date may be useful to know
   filter(!(is.na(EventDate))) %>% # Need this if no date filtering
-  select(-first_offense_date, -current_offense_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prob")
 
 stat_people = key_events %>%
   left_join(people_df, by="person_id") %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="people") 
 
@@ -331,41 +346,41 @@ features_before_on = key_events %>%
   inner_join(compas_df_wide, by=c("person_id","screening_date"))
 ```
 
-#### On screening_date
+#### On before_cutoff_date
 
 ```{r}
 dyn_arrest_on = key_events %>%
   left_join(casearrest_df, by="person_id") %>% # Duplicates features for different screening_dates
-  filter(arrest_date == current_offense_date) %>% # Only charges before the current offense should matter
-  select(-first_offense_date, -current_offense_date) %>% # Don't need these here now
+  filter(arrest_date == before_cutoff_date) %>% # Only charges before the current offense should matter
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% # Don't need these here now
   group_by(person_id, screening_date) %>%
   nest(.key="arrest")
 
 dyn_charge_on = key_events %>%
   left_join(charge_df, by="person_id") %>% 
-  filter(offense_date == current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(offense_date == before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="charge")
 
 dyn_jail_on = key_events %>%
   left_join(jailhistory_df, by="person_id") %>% 
-  filter(in_custody == current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody == before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="jail") 
 
 dyn_prison_on = key_events %>%
   left_join(prisonhistory_df, by="person_id") %>% 
-  filter(in_custody == current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody == before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prison") 
 
 dyn_prob_on = key_events %>%
   left_join(prob_df, by="person_id") %>% 
-  filter(EventDate == current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(EventDate == before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -offenses_within_30, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prob") 
 
@@ -385,38 +400,42 @@ features_on = pmap_dfr(data_on, .f=compute_features_on)
 #### After screening_date
 
 ```{r}
+#drop offenses within 30 features of key_events because we only cared about that for 
+#data before or before/on the screening date
+key_events = key_events %>% mutate(offenses_within_30 = NULL)
+
 dyn_arrest_after = key_events %>%
   left_join(casearrest_df, by="person_id") %>% # Duplicates features for different screening_dates
-  filter(arrest_date > current_offense_date) %>% # Only charges before the current offense should matter
-  select(-first_offense_date, -current_offense_date) %>% # Don't need these here now
+  filter(arrest_date > before_cutoff_date) %>% # Only charges before the current offense should matter
+  select(-first_offense_date, -current_offense_date, -before_cutoff_date) %>% # Don't need these here now
   group_by(person_id, screening_date) %>%
   nest(.key="arrest")
 
 dyn_charge_after = key_events %>%
   left_join(charge_df, by="person_id") %>%
-  filter(offense_date > current_offense_date) %>% #
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(offense_date > before_cutoff_date) %>% #
+  select(-first_offense_date, -current_offense_date, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="charge")
 
 dyn_jail_after = key_events %>%
   left_join(jailhistory_df, by="person_id") %>% 
-  filter(in_custody > current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody > before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="jail") 
 
 dyn_prison_after = key_events %>%
   left_join(prisonhistory_df, by="person_id") %>% 
-  filter(in_custody > current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(in_custody > before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prison") 
 
 dyn_prob_after = key_events %>%
   left_join(prob_df, by="person_id") %>% 
-  filter(EventDate > current_offense_date) %>% 
-  select(-first_offense_date, -current_offense_date) %>% 
+  filter(EventDate > before_cutoff_date) %>% 
+  select(-first_offense_date, -current_offense_date, -before_cutoff_date) %>% 
   group_by(person_id, screening_date) %>%
   nest(.key="prob") 
 
@@ -436,7 +455,7 @@ outcomes = pmap_dfr(data_after, .f=compute_outcomes)
 ## Save
 
 ```{r}
-save(data_before, data_on, data_after, 
+save(data_before, data_on, data_after, data_before_on,
      features, features_before_on, features_on, outcomes,  
      compas_df_wide,
      current_offense_date_limit,
