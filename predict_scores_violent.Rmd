@@ -5,18 +5,18 @@ date: "6/27/2018"
 output: html_document
 ---
 
-```{r, message=FALSE,warning=FALSE}
+```{r}
+library(lubridate)
 library(xgboost)
 library(randomForest)
 library(tidyverse)
-library(lubridate)
-
+library(magrittr)
+library(segmented)
 source('functions.r')
+
+load("Table_construction.Rdata") 
 ```
 
-```{r}
-load("Table_construction.Rdata")
-```
 
 ```{r}
 features = features %>%
@@ -30,6 +30,8 @@ features = features %>%
   ) %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
+  #duplicate columns
+  select(-c(offenses_within_30.y)) %>%
   
   # Create as many features as possible:
   mutate(
@@ -58,35 +60,36 @@ features = features %>%
       p_murder_arrest+
       p_felassault_arrest+
       p_misdemassault_arrest+
-      #p_famviol_arrest+
+      #p_famviol_arrest+ #because no observations have nonzero for this
       p_sex_arrest+
       p_weapons_arrest,
-    history_noncomp=p_prob_revoke+
+    history_noncomp = p_prob_revoke+
       p_probation+p_current_on_probation+
       p_n_on_probation,
     
     # Filters (TRUE for obserations to keep)
-    filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, # Filter 1
-    filt3 = !is.na(current_offense_date), # Filter 3
-    filt4 = current_offense_date <= current_offense_date_limit, # Filter 4
-    filt5 = p_current_age > 18 & p_current_age <= 70 # Filter 5
+    filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, 
+    filt2 = offenses_within_30.x == 1,
+    filt3 = !is.na(current_offense_date), 
+    filt4 = current_offense_date <= current_offense_date_limit, 
+    filt5 = p_current_age > 18 & p_current_age <= 65,  
+    filt6 = vio_hist == 0 & history_noncomp==0
   )
 ```
 
-
-
+Risk of Violence
+Modelled age with a 4th degree polynomial. See broward_sheriff_data for our efforts to model it with a variety of exponentials (couldn't get it quite right so used a polynomial in the end).
 ## Fit age polynomial
 
 ```{r}
-features_f_age = features %>%
-  filter(filt1,filt5) %>%
-  select(p_current_age, raw_score)
+features_age_poly = features %>%
+  filter(filt1,filt5, filt6) 
 
-lb_age = features_f_age %>%
+lb_age = features_age_poly %>%
   group_by(p_current_age) %>%
-  #arrange(raw_score, .by_group=TRUE) %>%
   arrange(raw_score) %>%
   top_n(n=-1, wt=raw_score) # Fit lower bound on smallest value
+
 
 mdl_age = lm(raw_score ~ 
                I(p_current_age^4) + 
@@ -100,32 +103,150 @@ summary(mdl_age)
 print("Coefficients:")
 sprintf("%.20e",mdl_age$coefficients) # More precision for paper
 
-## Add f(age) to features
+## Add f(age) to features and add filter
 features = features %>%
   mutate(
-    f_age = predict(mdl_age, newdata=data.frame(p_current_age=p_current_age)),
-    raw_score__f_age = raw_score - f_age,
-    filt6 = raw_score >= f_age
+    age_poly = predict(mdl_age, newdata=data.frame(p_current_age=p_current_age)),
+    raw_score__age_poly = raw_score - age_poly,
+    filt7 = raw_score >= age_poly - 0.05
   )
+
+## Add same columns as above to lb_age 
+lb_age = lb_age %>% 
+    mutate(
+    age_poly = predict(mdl_age, newdata=data.frame(p_current_age=p_current_age)),
+    raw_score__age_poly = raw_score - age_poly,
+    filt7 = raw_score >= age_poly - 0.05
+    )
 ```
 
-
+Plotting settings for age analysis
 ```{r}
-## Age polynomial plot
 xmin = 18
-xmax = 70
-xx = seq(xmin,xmax, length.out=1000)
+xmax = 65
+xx = seq(xmin,xmax, length.out = 1000)
+```
 
+## Age polynomial plot
+Generate a preliminary plot of age vs COMPAS violence score
+```{r}
 ggplot()+
-  geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.3, data=features_f_age) +
+  geom_point(aes(x=p_current_age, raw_score, color = factor(filt7)),alpha=.3, data=lb_age) +
   geom_line(aes(x=xx, predict(mdl_age, newdata=data.frame(p_current_age=xx))),color="#F8766D") +
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
   ylab("Violent score") +
-  theme(text = element_text(size=12),
-        axis.text=element_text(size=12),
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
         legend.position="none")
+
+ggplot()+
+  geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.3, data=features_age_poly) +
+  geom_line(aes(x=xx, predict(mdl_age, newdata=data.frame(p_current_age=xx))),color="#F8766D") +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at COMPAS screening date") +
+  ylab("Violent score") +
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position="none")
+```
+
+```{r}
+#Filter out outliers under the age polynomial, individuals with 
+#noncomp history/violence history != 0
+features_age_poly2 = features %>% 
+    filter(filt1, filt5, filt6, filt7) 
+    # filter(p_age_first_offense == p_current_age)
+
+lb_filt = features_age_poly2 %>%
+  group_by(p_current_age) %>%
+    arrange(raw_score)%>%
+    top_n(n=-1, wt = raw_score)
+
+lb_values = lb_filt %>%  
+    select(p_current_age, raw_score)%>%
+    group_by(p_current_age) %>%
+      summarize(raw_score = unique(raw_score), 
+                n_inds = n()) %>%
+    arrange(p_current_age)
+
+#filtered out points 
+lb_outliers = rbind(
+                #reason not included in lb_filt was  
+                #age not above age poly
+                setdiff(lb_age, lb_filt) %>%
+                  filter(!filt7) %>% #below age poly
+                  mutate(reason = "Below age polynomial")
+                                ) %>%
+              select(p_current_age, p_age_first_offense, raw_score, reason)
+
+lb = lb_filt %>% 
+     select(p_current_age, p_age_first_offense, raw_score) %>%
+     mutate(reason = "Used to construct linear splines") %>%
+     rbind(lb_outliers)
+```
+
+
+Generating new age spline. 
+```{r}
+mdl_age_spline <- segmented(lm(raw_score ~ p_current_age, data = lb_filt), 
+                            seg.Z = ~p_current_age, psi = list(p_current_age = c(22,36,44)),
+  control = seg.control(display = FALSE)
+)
+
+#Add Filter 9
+features = features %>%
+  mutate(
+    age_spline = predict(mdl_age_spline, newdata=data.frame(p_current_age=p_current_age)),
+    raw_score__age_spline = raw_score - age_spline,
+    filt8 = raw_score >= age_spline - 0.05
+  )
+
+```
+
+Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
+```{r}
+break1 =  summary.segmented(mdl_age_spline)$psi[1,2]
+break2 = summary.segmented(mdl_age_spline)$psi[2,2]
+break3 = summary.segmented(mdl_age_spline)$psi[3,2]
+
+
+xx1 = seq(xmin,break1, length.out=500)
+xx2 = seq(break1,break2, length.out=500)
+xx3 = seq(break2,break3, length.out=500)
+xx4 = seq(break3,xmax, length.out=500)
+
+age_spline_viol = 
+  ggplot()+
+  geom_point(aes(x=p_current_age, raw_score, color= factor(reason)),alpha=.5, data=lb ) +
+  scale_color_manual(values=c("red", "grey25")) + 
+  geom_line(aes(x=xx1, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx1))),
+                color="#F8766D", size = 1) +
+  geom_line(aes(x=xx2, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx2))),
+                color="darkorange1", size = 1) +
+  geom_line(aes(x=xx3, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx3))),
+                color="cyan3", size = 1) +
+  geom_line(aes(x=xx4, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx4))),
+                color="seagreen3", size = 1) +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  labs(
+    x = "\n Age at COMPAS screening date", 
+    y = "Violence Score \n"
+  ) +
+  theme(text = element_text(size=9),
+        axis.text=element_text(size=7),
+        legend.position = c(.95,.95),
+        legend.title = element_blank(),
+        # legend.key.width = unit(1.5, "cm"),
+        legend.justification = c("right", "top"),
+        legend.key = element_rect(fill = "aliceblue"),
+        legend.background = element_rect(fill="aliceblue",
+                                  size=0.5, linetype="solid")
+        )
+age_spline_viol
 ```
 
 ```{r}
@@ -133,23 +254,44 @@ ggsave("Figures/age_LB_violent.pdf",width = 3.5, height = 2.5, units = "in")
 ```
 
 
+```{r}
+# Age spline with all data (filters 1,5 still applied)
+# Red points are below the age polynomial not age spline
+ggplot()+
+  geom_point(aes(x=p_current_age, raw_score), color="#F8766D", data=features %>% filter(filt1,filt5,!filt7)) + # Age outliers
+  geom_point(aes(x=p_current_age, raw_score), color="#619CFF", alpha=.3, data=features %>% filter(filt1,filt5,filt7)) + # Not age outliers
+  geom_line(aes(x=xx, predict(mdl_age_spline, newdata=data.frame(p_current_age=xx))),color="#F8766D") +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at COMPAS screening date") +
+  ylab("General score") +
+  theme(text = element_text(size=12),
+        axis.text=element_text(size=12),
+        legend.position="top") 
+```
+
+```{r}
+ggsave("Figures/age_LB_alldata_violent.pdf",width = 3.5, height = 2.5, units = "in")
+```
+
+
 ## Fit history of violence lower bound
 
 ```{r}
-### Compute lower bound of raw_score__f_age for each vio_hist value:
+### Compute lower bound of raw_score__age_spline for each vio_hist value:
 
 # Apply filters:
 features_vio_hist = features %>%
   filter(filt1,filt3) %>% # Careful, filter 6 applied later since we need these points for plot
-  select(vio_hist, raw_score__f_age,filt6)
+  select(vio_hist, raw_score__age_spline,filt8)
 
 # Compute lower bound
 lb_vio_hist = features_vio_hist %>%
-  filter(filt6) %>% # Now apply filter 6
-  select(-filt6) %>%
+  filter(filt8) %>% # Now apply filter 6
+  select(-filt8) %>%
   group_by(vio_hist)%>%
-  top_n(n=-1,wt=raw_score__f_age)%>%
-  rename(g_vio_hist = raw_score__f_age) %>%
+  top_n(n=-1,wt=raw_score__age_spline)%>%
+  rename(g_vio_hist = raw_score__age_spline) %>%
   #arrange(vio_hist,.by_group=TRUE) %>%
   arrange(vio_hist) %>%
   ungroup()
@@ -164,7 +306,7 @@ lb_vio_hist = lb_vio_hist %>%
 # Add g(vio_hist) to features
 features = features %>%
   left_join(lb_vio_hist, by="vio_hist") %>%
-  mutate(raw_score__f_age__g_vio_hist = raw_score__f_age - g_vio_hist)
+  mutate(raw_score__age_spline__g_vio_hist = raw_score__age_spline - g_vio_hist)
 ```
 
 ```{r}
@@ -174,7 +316,7 @@ lb_vio_hist_plot =
   left_join(lb_vio_hist,by="vio_hist")
 
 ggplot() +
-  geom_point(data=features_vio_hist,aes(x=vio_hist,y=raw_score__f_age,color=filt6),alpha=.5) +
+  geom_point(data=features_vio_hist,aes(x=vio_hist,y=raw_score__age_spline,color=filt8),alpha=.5) +
   geom_line(data=lb_vio_hist_plot,aes(x=vio_hist_xx,y=g_vio_hist,color="lb"))+
   theme_bw()+
   xlab("Sum of History of Violence Components") +
@@ -201,9 +343,9 @@ ggsave("Figures/vio_hist_LB_violent.pdf",width = 5, height = 3, units = "in")
 ```{r}
 features %>%
   filter(filt1,filt3) %>% 
-  select(history_noncomp, raw_score__f_age__g_vio_hist, filt6) %>%
+  select(history_noncomp, raw_score__age_spline__g_vio_hist, filt8) %>%
   ggplot() +
-  geom_point(aes(x=history_noncomp,y=raw_score__f_age__g_vio_hist,color=filt6),alpha=.5) +
+  geom_point(aes(x=history_noncomp,y=raw_score__age_spline__g_vio_hist,color=filt8),alpha=.5) +
   theme_bw()+
   xlab("Sum of History of Noncompliance Components") +
   ylab(expression(Violent~score~-~f[viol~age]~-~g[viol~hist]))  +
@@ -280,22 +422,22 @@ train = features_filt %>%
     p_n_on_probation,
     p_current_on_probation,
     p_prob_revoke,
-    raw_score__f_age)
+    raw_score__age_spline)
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
-  "data" = train %>% select(-raw_score__f_age) %>% as.matrix(),
-  "label" = train %>% select(raw_score__f_age) %>% as.matrix()
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
 )
 ```
 
 ### Model 1: Linear model
 
 ```{r}
-mdl_lm = lm(raw_score__f_age ~ ., data=train)
+mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
-res_rmse[res_rmse$Group==1,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==1,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 2: xgboost
@@ -308,7 +450,7 @@ mdl_xgb = fit_xgboost(train_xgb, param)
 ```{r}
 ### xgboost plot
 pred = predict(mdl_xgb, newdata=train_xgb)
-actual = train$raw_score__f_age
+actual = train$raw_score__age_spline
 
 res_rmse[res_rmse$Group==1,]$xgb = rmse(pred, actual) # ADJUST GROUP
 
@@ -341,19 +483,19 @@ xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 set.seed(55656)
 
 mdl_rf = randomForest(
-  formula = raw_score__f_age ~ .,
+  formula = raw_score__age_spline ~ .,
   data = train
 )
 
-res_rmse[res_rmse$Group==1,]$rf = rmse(mdl_rf$predicted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==1,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 4: SVM
 
 ```{r}
-mdl_svm = fit_svm(raw_score__f_age ~ ., train, param_svm)
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
-res_rmse[res_rmse$Group==1,]$svm = rmse(mdl_svm$fitted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==1,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 
@@ -393,23 +535,23 @@ train = features_filt %>%
     race_hispanic,
     race_asian,
     race_native, # race == "Other" is the baseline
-    raw_score__f_age)
+    raw_score__age_spline)
 
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
-  "data" = train %>% select(-raw_score__f_age) %>% as.matrix(),
-  "label" = train %>% select(raw_score__f_age) %>% as.matrix()
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
 )
 ```
 
 ### Model 1: Linear model
 
 ```{r}
-mdl_lm = lm(raw_score__f_age ~ ., data=train)
+mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
-res_rmse[res_rmse$Group==2,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==2,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 2: xgboost
@@ -422,7 +564,7 @@ mdl_xgb = fit_xgboost(train_xgb, param)
 ```{r}
 ### xgboost plot
 pred = predict(mdl_xgb, newdata=train_xgb)
-actual = train$raw_score__f_age
+actual = train$raw_score__age_spline
 
 res_rmse[res_rmse$Group==2,]$xgb = rmse(pred, actual) # ADJUST GROUP
 
@@ -457,19 +599,19 @@ xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 set.seed(2728)
 
 mdl_rf = randomForest(
-  formula = raw_score__f_age ~ .,
+  formula = raw_score__age_spline ~ .,
   data = train
 )
 
-res_rmse[res_rmse$Group==2,]$rf = rmse(mdl_rf$predicted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==2,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 4: SVM
 
 ```{r}
-mdl_svm = fit_svm(raw_score__f_age ~ ., train, param_svm)
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
-res_rmse[res_rmse$Group==2,]$svm = rmse(mdl_svm$fitted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==2,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Cleanup
@@ -505,22 +647,22 @@ train = features_filt %>%
     p_n_on_probation,
     p_current_on_probation,
     p_prob_revoke,
-    raw_score__f_age)
+    raw_score__age_spline)
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
-  "data" = train %>% select(-raw_score__f_age) %>% as.matrix(),
-  "label" = train %>% select(raw_score__f_age) %>% as.matrix()
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
 )
 ```
 
 ### Model 1: Linear model
 
 ```{r}
-mdl_lm = lm(raw_score__f_age ~ ., data=train)
+mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
-res_rmse[res_rmse$Group==3,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==3,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 2: xgboost
@@ -533,7 +675,7 @@ mdl_xgb = fit_xgboost(train_xgb, param)
 ```{r}
 ### xgboost plot
 pred = predict(mdl_xgb, newdata=train_xgb)
-actual = train$raw_score__f_age
+actual = train$raw_score__age_spline
 
 res_rmse[res_rmse$Group==3,]$xgb = rmse(pred, actual) # ADJUST GROUP
 
@@ -572,19 +714,19 @@ xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 set.seed(7872)
 
 mdl_rf = randomForest(
-  formula = raw_score__f_age ~ .,
+  formula = raw_score__age_spline ~ .,
   data = train
 )
 
-res_rmse[res_rmse$Group==3,]$rf = rmse(mdl_rf$predicted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==3,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 4: SVM
 
 ```{r}
-mdl_svm = fit_svm(raw_score__f_age ~ ., train, param_svm)
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
-res_rmse[res_rmse$Group==3,]$svm = rmse(mdl_svm$fitted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==3,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Cleanup
@@ -623,22 +765,22 @@ train = features_filt %>%
     race_hispanic,
     race_asian,
     race_native, # race == "Other" is the baseline
-    raw_score__f_age)
+    raw_score__age_spline)
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
-  "data" = train %>% select(-raw_score__f_age) %>% as.matrix(),
-  "label" = train %>% select(raw_score__f_age) %>% as.matrix()
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
 )
 ```
 
 ### Model 1: Linear model
 
 ```{r}
-mdl_lm = lm(raw_score__f_age ~ ., data=train)
+mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
-res_rmse[res_rmse$Group==4,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==4,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 2: xgboost
@@ -651,7 +793,7 @@ mdl_xgb = fit_xgboost(train_xgb, param)
 ```{r}
 ### xgboost plot
 pred = predict(mdl_xgb, newdata=train_xgb)
-actual = train$raw_score__f_age
+actual = train$raw_score__age_spline
 
 res_rmse[res_rmse$Group==4,]$xgb = rmse(pred, actual) # ADJUST GROUP
 
@@ -730,19 +872,19 @@ ggsave("Figures/xgboost_rawScore_annotate_violent.pdf",width = 3, height = 3, un
 set.seed(379)
 
 mdl_rf = randomForest(
-  formula = raw_score__f_age ~ .,
+  formula = raw_score__age_spline ~ .,
   data = train
 )
 
-res_rmse[res_rmse$Group==4,]$rf = rmse(mdl_rf$predicted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==4,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Model 4: SVM
 
 ```{r}
-mdl_svm = fit_svm(raw_score__f_age ~ ., train, param_svm)
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
-res_rmse[res_rmse$Group==4,]$svm = rmse(mdl_svm$fitted, train$raw_score__f_age) # ADJUST GROUP
+res_rmse[res_rmse$Group==4,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
 ```
 
 ### Cleanup
@@ -855,12 +997,12 @@ train = features_filt %>%
     p_n_on_probation,
     p_current_on_probation,
     p_prob_revoke,
-    raw_score__f_age__g_vio_hist)
+    raw_score__age_spline__g_vio_hist)
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
-  "data" = train %>% select(-raw_score__f_age__g_vio_hist) %>% as.matrix(),
-  "label" = train %>% select(raw_score__f_age__g_vio_hist) %>% as.matrix()
+  "data" = train %>% select(-raw_score__age_spline__g_vio_hist) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline__g_vio_hist) %>% as.matrix()
 )
 ```
 
@@ -873,7 +1015,7 @@ mdl_xgb = fit_xgboost(train_xgb, param)
 ```{r}
 ### xgboost plot
 pred = predict(mdl_xgb, newdata=train_xgb)
-actual = train$raw_score__f_age__g_vio_hist
+actual = train$raw_score__age_spline__g_vio_hist
 
 print(paste("RMSE:",round(rmse(pred, actual),4)))
 

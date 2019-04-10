@@ -1,4 +1,4 @@
-This repository contains all code used in *Age of Unfairness* by Cynthia Rudin, Caroline Wang, and Beau Coker.
+This repository contains all code used in *The age of secrecy and unfairness in recidivism prediction* by Cynthia Rudin, Caroline Wang, and Beau Coker.
 
 ## Data
 
@@ -37,22 +37,22 @@ These groups are referenced in the code.
 
 ## Row filtering
 
-Depending on the analysis, some observations are discarded. For example, some individuals were given a COMPAS score less than two years before the data was pulled, so we cannot asses whether or not they committed a new crime within two years. At most there are 12,381 unique people / COMPAS screening date combinations. The following filters are used at some point in the analysis: 
+Depending on the analysis, some observations are discarded. For example, some individuals were given a COMPAS score less than two years before the data was pulled, so we cannot asses whether or not they committed a new crime within two years. At most there are 12,381 unique people / COMPAS screening date combinations. The following filters are used at some point in the analysis, with the number of observations this filter removes from *total* number of observations (i.e., so some filters may overlap) for the general and violent scores given in paranthesis:
 
-
-
-*	**Filter 1:** Remove observations with -1 decile scores (removes 15 observations).
-*	**Filter 2:** Remove all but African-Americans and Caucasians (removes 1929 observations).
-*	**Filter 3:** Remove observations with no current offense (removes 3331 observations).
-*	**Filter 4:** Remove observations without two years of data past screening date (removes 4474 observations).
-*	**Filter 5:** Remove observations with current age <= 18 or > 70 (removes 670 observations).
-*	**Filter 6:** Remove all observations below f(age) or f(viol age) (one or the other, depending on the score of interest).
+*	**Filter 1:** Remove observations with -1 decile scores (removes 15 general, 15 violent).
+*	**Filter 2:** Remove all but African-Americans and Caucasians (removes 1929 general, 1929 violent).
+*	**Filter 3:** Remove observations with no current offense (removes 3331 general, 3331 violent).
+*	**Filter 4:** Remove observations without two years of data past screening date (removes 6615 general, 6615 violent).
+*	**Filter 5:** Remove observations with current age <= 18 or >65 (removes 739 general, 739 violent).
+*	**Filter 6:** Remove observations with nonzero subscale inputs, for the relavant subscales (removes 8239 general, 5658 violent) 
+*	**Filter 7:** Remove all observations 0.05 below the age polynomial (removes 18 general, 11 violent).
+*	**Filter 8:** Remove all observations 0.05 below the age spline (removes 22 general, 12 violent).
 
 The following results in the paper use the listed filters:
 #### General and Violent Recidivism Results
 
 *	*f(age) and f(viol_age) fitting + plot:*
-Filters 1, 5
+Filters 1, 5, 6, 7
 *	*Logistic regression AND probability of reoffending plot:*
 Filters 1, 3, 4
 *	*Any COMPAS score prediction (whether or not reversed engineered components subtracted):*
@@ -64,7 +64,7 @@ Filters 1, 3, 4
 #### General Recidivism Results
 
 *	*raw_score - f(age) vs. number or priors AND vs. criminal involvement plot:*
-Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
+Filters 1, 3, 8 (but those filtered by 8 added to plot in green)
 *	*TPR/FPR plot:*
 Filters 1, 2, 3
 
@@ -72,9 +72,9 @@ Filters 1, 2, 3
 #### Violent Recidivism Results
 
 *	*raw_score - f(age) vs. history of violence fitting + plot:*
-Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
+Filters 1, 3, 8 (but those filtered by 8 added to plot in green)
 *	*raw_score - f(age) - g(vio_hist) vs. history of noncompliance plot:*
-Filters 1, 3, 6 (but those filtered by 6 added to plot in green)
+Filters 1, 3, 8 (but those filtered by 8 added to plot in green)
 
 
 #### Other Results

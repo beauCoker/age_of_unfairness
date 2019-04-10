@@ -69,7 +69,7 @@ res_error = data.frame(Group = 1:5, glm = NA, xgb = NA, rf = NA, svm = NA)
 
 
 
-## Group 1 models: predicting (raw score - age polynomial) without using age variables or race
+## Group 1 models: predicting recidivism without using age variables or race
 
 ```{r}
 ### Create group 1 training data
@@ -166,7 +166,7 @@ rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
 
 
 
-## Group 2 models: predicting (raw score - age polynomial) without using age variables but with race
+## Group 2 models: predicting recidivism without using age variables but with race
 
 ```{r}
 ### Create group 2 training data
@@ -268,7 +268,7 @@ rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
 
 
 
-## Group 3 models: predicting (raw score - age polynomial) without using race but with age variables
+## Group 3 models: predicting recidivism without using race but with age variables
 
 ```{r}
 ### Create group 3 training data
@@ -443,7 +443,7 @@ rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
 
 
 
-## Group 4 models: predicting (raw score - age polynomial) using age variables and race
+## Group 4 models: predicting recidivism using age variables and race
 
 ```{r}
 ### Create group 2 training data
