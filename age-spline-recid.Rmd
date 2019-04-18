@@ -190,6 +190,16 @@ features = features %>%
 ```
 
 ```{r}
+mdl_age_spline
+intercept(mdl_age_spline)
+slope(mdl_age_spline)
+
+```
+
+
+
+
+```{r}
 summary.segmented(mdl_age_spline)$psi
 break1 =  summary.segmented(mdl_age_spline)$psi[1,2]
 break2 =  summary.segmented(mdl_age_spline)$psi[2,2]
@@ -223,4 +233,37 @@ age_spline_recid =
         )
 
 age_spline_recid
+
+age_spline_recid_all = 
+  ggplot()+
+  geom_point(aes(x=p_current_age, raw_score, color= factor(reason)),alpha=.5, data=lb ) +
+  scale_color_manual(values=c("red", "grey25")) + 
+  geom_line(aes(x=xx1, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx1))),
+                color="#F8766D", size = 1) +
+  geom_line(aes(x=xx2, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx2))),
+                color="#F8766D", size = 1) +
+  geom_line(aes(x=xx3, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx3))),
+                color="#F8766D", size = 1) +
+  
+  geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.3, data=features_age_poly2) +
+
+  theme_bw()+
+  xlim(xmin,xmax)+
+  labs(
+    x = "\n Age at COMPAS screening date", 
+    y = "General Score \n"
+  ) +
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position = "none"
+        )
+
+age_spline_recid_all
+
+```
+
+```{r}
+ggsave("Figures/age_spline_recid.pdf",plot = age_spline_recid, width = 6, height = 4, units = "in")
+ggsave("Figures/age_spline_recid_all.pdf",plot = age_spline_recid_all, width = 6, height = 4, units = "in")
+
 ```

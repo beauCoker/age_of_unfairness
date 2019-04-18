@@ -15,7 +15,7 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction2.Rdata") #loading beau's version of data
+load("Table_construction2.Rdata")
 ```
 
 ```{r}
@@ -78,9 +78,8 @@ features = features %>%
 ```
 
 Risk of Violence
-Modelled age with a 4th degree polynomial. See broward_sheriff_data for our efforts to model it with a variety of exponentials (couldn't get it quite right so used a polynomial in the end).
+Initially modelled age with a 4th degree polynomial. 
 ## Fit age polynomial
-
 ```{r}
 features_age_poly = features %>%
   filter(filt1,filt5, filt6) 
@@ -206,6 +205,12 @@ features = features %>%
 
 ```
 
+```{r}
+intercept(mdl_age_spline)
+slope(mdl_age_spline)
+
+```
+
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
 ```{r}
 break1 =  summary.segmented(mdl_age_spline)$psi[1,2]
@@ -247,4 +252,39 @@ age_spline_viol =
                                   size=0.5, linetype="solid")
         )
 age_spline_viol
+
+age_spline_viol_all = 
+  ggplot()+
+  geom_point(aes(x=p_current_age, raw_score, color= factor(reason)),alpha=.5, data=lb ) +
+  scale_color_manual(values=c("red", "grey25")) + 
+  geom_line(aes(x=xx1, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx1))),
+                color="#F8766D", size = 1) +
+  geom_line(aes(x=xx2, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx2))),
+                color="#F8766D", size = 1) +
+  geom_line(aes(x=xx3, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx3))),
+                color="#F8766D", size = 1) +
+  geom_line(aes(x=xx4, y = predict(mdl_age_spline, newdata=data.frame(p_current_age=xx4))),
+                color="#F8766D", size = 1) +
+  
+  geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.3, data=features_age_poly2) +
+
+  theme_bw()+
+  xlim(xmin,xmax)+
+  labs(
+    x = "\n Age at COMPAS screening date", 
+    y = "Violence Score \n"
+  ) +
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position = "none",
+        )
+
+age_spline_viol_all
 ```
+
+```{r}
+ggsave("Figures/age_spline_viol.pdf",plot = age_spline_viol, width = 6, height = 4, units = "in")
+ggsave("Figures/age_spline_viol_all.pdf",plot = age_spline_viol_all, width = 6, height = 4, units = "in")
+
+```
+
