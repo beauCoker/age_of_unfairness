@@ -264,7 +264,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("General score") +
+  ylab("Violence score") +
   theme(text = element_text(size=12),
         axis.text=element_text(size=12),
         legend.position="top") 
