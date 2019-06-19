@@ -135,7 +135,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("Violent score") +
+  ylab("Violence score") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -146,7 +146,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("Violent score") +
+  ylab("Violence score") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -217,7 +217,7 @@ fireplot_lb_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at COMPAS screening date") +
-  ylab("Violent score \n") +
+  ylab("Violence score \n") +
   theme(text = element_text(size=16),
         axis.text=element_text(size=16), 
         legend.position ="top")
@@ -236,7 +236,7 @@ fireplot_all_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at COMPAS screening date") +
-  ylab("Violent score \n") +
+  ylab("Violence score \n") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18), 
         legend.position ="top")
@@ -250,7 +250,7 @@ age_first_offense_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at First Offense") +
-  ylab("Violent score \n") +
+  ylab("Violence score \n") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -268,7 +268,7 @@ reverse_fireplot_all_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age") +
-  ylab("Violent score \n") +
+  ylab("Violence score \n") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -280,7 +280,7 @@ lb_inds_freq_viol = ggplot()+
   theme_bw() +
   xlim(xmin,xmax) +
   xlab("\n Age at COMPAS screening date") +
-  ylab("Violent score\n ") +
+  ylab("Violence score\n ") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
