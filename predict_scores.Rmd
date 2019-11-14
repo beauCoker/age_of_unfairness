@@ -281,7 +281,6 @@ ggsave("Figures/crim_inv_LB_general.pdf",width = 3.5, height = 2.5, units = "in"
 
 Also look at just number of priors
 
-
 ```{r}
 features %>%
   filter(filt1,filt3) %>% 
@@ -307,8 +306,47 @@ ggsave("Figures/priors_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
 ```
 
 
+## Look at Compas remainder vs age at first arrest, given that everybody has 1 prior
 
-# Predictions of (raw - age polynomial) using several ML methods
+```{r}
+features %>%
+  filter(filt1, filt3, p_charge == 1) %>% 
+  select(p_age_first_offense, raw_score__age_spline, filt8) %>%
+  ggplot() +
+  geom_point(aes(x=p_age_first_offense,y=raw_score__age_spline,color=filt8),alpha=.5) +
+  xlim(c(0,70))+
+  theme_bw()+
+  xlab("Age at first offense given p_charges=1") +
+  ylab(expression(General~score~-~f[age]))  +
+  theme(text = element_text(size=12),
+        axis.text=element_text(size=12),
+        legend.position="top") +
+  scale_color_manual(name=element_blank(),
+                       breaks=c("TRUE", "FALSE"),
+                       labels=c(expression(Above~f[age]), expression(Below~f[age])),
+                       values=c("TRUE"="#619CFF","FALSE"="#00BA38"))
+
+features %>%
+  filter(filt1, filt3, p_charge_violent == 1) %>% 
+  select(p_age_first_offense, raw_score__age_spline, filt8) %>%
+  ggplot() +
+  geom_point(aes(x=p_age_first_offense,y=raw_score__age_spline,color=filt8),alpha=.5) +
+  xlim(c(0,70))+
+  theme_bw()+
+  xlab("Age at first offense given p_charges_violent=1") +
+  ylab(expression(General~score~-~f[age]))  +
+  theme(text = element_text(size=12),
+        axis.text=element_text(size=12),
+        legend.position="top") +
+  scale_color_manual(name=element_blank(),
+                       breaks=c("TRUE", "FALSE"),
+                       labels=c(expression(Above~f[age]), expression(Below~f[age])),
+                       values=c("TRUE"="#619CFF","FALSE"="#00BA38"))
+```
+
+
+
+## Predictions of (raw - age polynomial) using several ML methods
 
 There are a few groups of predictors we will use:
 * Group 1: without using age variables or race
@@ -446,8 +484,45 @@ rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
 
 
 
+# Extra Group: predict age remainder without age at first arrest, current age, and race
+
+```{r}
+### Create group 2 training data
+
+## Select features and round count features
+train = features_filt %>%
+  select(
+    #p_current_age,
+    # p_age_first_offense,
+    p_charge,
+    p_jail30,
+    p_prison,
+    p_probation,
+    raw_score__age_spline)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
+
+)
+
+set.seed(923)
+mdl_xgb = fit_xgboost(train_xgb, param)
+
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$raw_score__age_spline
+
+rmse(pred, actual) 
 
 
+```
+
+RMSE without age at first arrest is .5358, RMSE with age at first arrest is .5227 (get higher error without age at first arrest)
+```{r}
+# compare to group 1 (with age-first-arrest, but without current age and race)
+res_rmse
+```
 
 
 ## Group 2 models: predicting (raw score - age spline) without using age variables but with race
