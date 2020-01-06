@@ -21,10 +21,13 @@ source('functions.R')
 ### Local file paths
 
 # ProPublica analysis
-f_propub = "Raw_data/compas-analysis/"
+# f_propub = "Raw_data/compas-analysis/"
+f_propub = "../propublica-analysis/"
 
 # Data we have pulled
-f_our_data = "Raw_data/probation/"
+# f_our_data = "Raw_data/probation/"
+f_our_data = "../../broward-data/"
+
 ```
 
 ```{r}
@@ -70,8 +73,8 @@ gc()
 
 ```{r, message=FALSE, warning=FALSE}
 ### Load our data
-#fail_to_appear <- read_csv(paste0(f_our_data,"fail_to_appear.csv"))
-#convictions <- read_csv(paste0(f_our_data,"convicted_from_disps.csv"))
+# fail_to_appear <- read_csv(paste0(f_our_data,"fail_to_appear.csv"))
+# convictions <- read_csv(paste0(f_our_data,"convicted_from_disps.csv"))
 
 eventsdescrp_df<-read_csv(paste0(f_our_data,"eventsdescrp_df1.csv"))%>%
                     bind_rows(.,read_csv(paste0(f_our_data,"eventsdescrp_df2.csv"))) %>%
@@ -175,6 +178,8 @@ key_events = compas_df_wide %>%
 
 ```
 
+
+
 ```{r}
 ### Add columns to ProPublica tables. Each entry should depend only on other entries in the same row.
 charge_df = charge_df %>%
@@ -187,8 +192,7 @@ charge_df = charge_df %>%
     is_property=if_else(substr(statute,1,3) %in% c("806","810","812"),1,0),
     is_murder=if_else(substr(statute,1,3) %in% c("782"),1,0),
     is_assault=if_else(substr(statute,1,3) %in% c("784"),1,0),
-    #not including murder, sex, domestic violence, but I
-    #think I need to look at this more closely
+    #not including murder, sex, domestic violence
     is_family_violence=if_else(substr(statute,1,6)=="741.28",1,0),
     is_sex_offense=if_else(substr(statute,1,3)=="794"|
                              substr(statute,1,7)=="784.046",1,0),
@@ -265,6 +269,22 @@ data_before = key_events %>%
   left_join(dyn_prison, by=c("person_id","screening_date")) %>%
   left_join(dyn_prob, by=c("person_id","screening_date")) %>%
   inner_join(stat_people, by=c("person_id","screening_date")) # Should be 1-1 mapping between dataframes
+```
+
+# Check dyn_arrest, dyn_charge  
+REMOVE
+```{r}
+charges = dyn_charge %>% filter(person_id == 4) 
+
+arrests = dyn_arrest %>% filter(person_id == 4)
+
+charge_df = charges$charge %>% as.data.frame()
+arrest_df = arrests$arrest %>% as.data.frame()
+
+charge_df
+arrest_df
+#length(unique(res_df$arrest_date))
+#res_df
 ```
 
 

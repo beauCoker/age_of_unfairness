@@ -21,7 +21,6 @@ load("Table_construction.Rdata")
 ```
 
 
-
 ```{r}
 features = features %>%
   # Add other useful information:
@@ -69,10 +68,10 @@ features = features %>%
 
 Modelling the COMPAS Risk of Recidivism score with a quadratic poly.
 ```{r}
+#filter out any individiuals with crim inv history on lb of age poly
 features_age_poly= features %>%
   filter(filt1,filt5, filt6) 
 
-#filter out any individiuals with crim inv history on lb of age poly
 lb_age = features_age_poly %>%
   group_by(p_current_age) %>%
   arrange(raw_score) %>%
@@ -260,6 +259,19 @@ reverse_fireplot_all_recid = ggplot()+
         legend.position="none")
 reverse_fireplot_all_recid
 
+# plotting individuals in the lb so that rpted pts are larger 
+lb_inds_freq_recid = ggplot()+
+  stat_sum(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.7, data=lb_filt) +
+  theme_bw() +
+  xlim(xmin,xmax) +
+  xlab("\n Age at COMPAS screening date") +
+  ylab("General score\n ") +
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position="none")
+lb_inds_freq_recid
+
+
 ```
 
 ```{r}
@@ -272,18 +284,55 @@ ggsave("Figures/lb_inds_freq_recid.pdf",plot = lb_inds_freq_recid, width = 6, he
 
 ### Age at first offense analysis
 ```{r}
-#Filter observations to remove age outliers
-features_age_spline = features %>% 
+# crim hist = 0  
+features_scales0 = features %>% 
     filter(filt1, filt5, filt6, filt8)
 
-ggplot()+
-  geom_point(aes(x=p_age_first_offense, y= raw_score__age_spline), color = "#619CFF",alpha=.3, data=features_age_spline) +
+age_first_offense_general_scales0 <- ggplot()+
+  geom_point(aes(x=p_age_first_offense, y= raw_score__age_spline), color = "#619CFF",alpha=.3, 
+             data=features_scales0) +
   theme_bw()+
   xlim(xmin,xmax)+
-  xlab("Age at First Offense") +
+  xlab("Age at First Arrest") +
   ylab("General score - age spline") +
-  theme(text = element_text(size=14),
+  ggtitle("Criminal Involvement = 0") + 
+  theme(text = element_text(size=18),
         axis.text=element_text(size=14),
         legend.position="none")
 
+age_first_offense_general_scales0
+
+# crim hist = 1 and age != age at first offense 
+features_scales1 <- features %>% 
+    filter(filt1, filt5,filt8, 
+           crim_inv == 1, 
+           p_age_first_offense != p_current_age)
+
+age_first_offense_general_scales1 <- ggplot()+
+  geom_point(aes(x=p_age_first_offense, 
+                 y= raw_score__age_spline), 
+                 color = "#619CFF",
+                 alpha=.3, 
+                 data=features_scales1) +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at First Arrest") +
+  ylab("General score - age spline") +
+  ggtitle("Criminal Involvement = 1, \nCurrent Age != Age at First Arrest") + 
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=14),
+        legend.position="none")
+
+age_first_offense_general_scales1
+
+
 ```
+
+
+```{r}
+ggsave("Figures/age_first_offense_general_scales0.pdf",plot = age_first_offense_general_scales0, width = 6.5, height = 4, units = "in")
+
+ggsave("Figures/age_first_offense_general_scales1.pdf",plot = age_first_offense_general_scales1, width = 6.5, height = 4, units = "in")
+
+```
+

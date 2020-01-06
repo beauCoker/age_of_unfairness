@@ -299,19 +299,62 @@ ggsave("Figures/lb_inds_freq_viol.pdf",plot = lb_inds_freq_viol, width = 6, heig
 
 ### Age at first offense analysis
 ```{r}
-#Filter observations to remove age outliers
-features_age_spline = features %>% 
+#History of noncomp = 0, violence history = 0 
+features_scales0 <- features %>% 
     filter(filt1, filt5, filt6, filt7,filt9)
 
-ggplot()+
-  geom_point(aes(x=p_age_first_offense, y= raw_score__age_spline), color = "#619CFF",alpha=.3, data=features_age_spline) +
+age_first_offense_viol_scales0 <- ggplot()+
+  geom_point(aes(x=p_age_first_offense, 
+                 y= raw_score__age_spline), 
+                 color = "#619CFF",
+                 alpha=.3, 
+                 data=features_scales0) +
   theme_bw()+
   xlim(xmin,xmax)+
-  xlab("Age at First Offense") +
+  xlab("Age at First Arrest") +
   ylab("Violence score - age spline") +
-  theme(text = element_text(size=14),
+  ggtitle("Violence History & Noncomp. History = 0") + 
+  theme(text = element_text(size=18),
         axis.text=element_text(size=14),
         legend.position="none")
+
+age_first_offense_viol_scales0
+
+
+#History of noncomp = 1, violence history = 1, age at first offense != current age 
+features_scales1 <- features %>% 
+    filter(filt1, filt5,filt9, 
+           vio_hist == 1, 
+           history_noncomp == 1, 
+           p_age_first_offense != p_current_age)
+
+age_first_offense_viol_scales1 <- ggplot()+
+  geom_point(aes(x=p_age_first_offense, 
+                 y= raw_score__age_spline), 
+                 color = "#619CFF",
+                 alpha=.3, 
+                 data=features_scales1) +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at First Arrest") +
+  ylab("Violence score - age spline") +
+  ggtitle("Violence History & Noncomp. History = 1, \nCurrent Age != Age at First Arrest") + 
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=14),
+        legend.position="none")
+
+age_first_offense_viol_scales1
+
+
+```
+
+
+
+
+```{r}
+ggsave("Figures/age_first_offense_viol_scales0.pdf", plot = age_first_offense_viol_scales0, width = 6.5, height = 4, units = "in")
+
+ggsave("Figures/age_first_offense_viol_scales1.pdf", plot = age_first_offense_viol_scales1, width = 6.5, height = 4, units = "in")
 
 ```
 
