@@ -23,7 +23,7 @@ load("Table_construction.Rdata")
 features = features %>%
   # Add other useful information:
   inner_join(
-    data_before %>% 
+    data_before_on %>% 
       select(person_id, screening_date, people) %>%
       unnest() %>%
       select(person_id, screening_date, race, sex, name),
@@ -40,8 +40,8 @@ features = features %>%
 Much better now. 
 ```{r}
 res_df = features %>% 
-        filter(person_id %in% c(799, 1284, 10774, 1638, 8491, 1515, 1394, 8200, 5722, 6337, 6886, 10553, 3145, 3291, 11414, 7997, 1497, 11231, 11096, 11312)) %>%
-        select(person_id, screening_date, name, p_charge, p_arrest) %>%
+        filter(person_id %in% c(11312)) %>%
+        # select(person_id, screening_date, name, p_charge, p_arrest, current_offense_date, ) %>%
         mutate(arrest_check = p_charge>=p_arrest) 
   
 View(res_df)
