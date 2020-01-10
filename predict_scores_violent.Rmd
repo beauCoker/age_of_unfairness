@@ -31,7 +31,7 @@ features = features %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
   #duplicate columns
-  select(-c(offenses_within_30.y)) %>%
+  # select(-c(offenses_within_30.y)) %>%
   
   # Create as many features as possible:
   mutate(
@@ -69,7 +69,7 @@ features = features %>%
     
     # Filters (TRUE for obserations to keep)
     filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, 
-    filt2 = offenses_within_30.x == 1,
+    filt2 = offenses_within_30 == 1,
     filt3 = !is.na(current_offense_date), 
     filt4 = current_offense_date <= current_offense_date_limit, 
     filt5 = p_current_age > 18 & p_current_age <= 65,  
@@ -206,6 +206,12 @@ features = features %>%
 
 ```
 
+```{r}
+intercept(mdl_age_spline)
+slope(mdl_age_spline)
+```
+
+
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
 ```{r}
 break1 =  summary.segmented(mdl_age_spline)$psi[1,2]
@@ -240,24 +246,24 @@ age_spline_viol =
         axis.text=element_text(size=7),
         legend.position = c(.95,.95),
         legend.title = element_blank(),
-        # legend.key.width = unit(1.5, "cm"),
         legend.justification = c("right", "top"),
         legend.key = element_rect(fill = "aliceblue"),
         legend.background = element_rect(fill="aliceblue",
                                   size=0.5, linetype="solid")
         )
 age_spline_viol
+
 ```
 
 ```{r}
-ggsave("Figures/age_LB_violent.pdf",width = 3.5, height = 2.5, units = "in")
+ggsave("Figures/age_LB_violent.pdf",plot = age_spline_viol, width = 3.5, height = 2.5, units = "in")
 ```
 
 
 ```{r}
 # Age spline with all data (filters 1,5 still applied)
 # Red points are below the age polynomial not age spline
-ggplot()+
+age_spline_viol_all = ggplot()+
   geom_point(aes(x=p_current_age, raw_score), color="#F8766D", data=features %>% filter(filt1,filt5,!filt7)) + # Age outliers
   geom_point(aes(x=p_current_age, raw_score), color="#619CFF", alpha=.3, data=features %>% filter(filt1,filt5,filt7)) + # Not age outliers
   geom_line(aes(x=xx, predict(mdl_age_spline, newdata=data.frame(p_current_age=xx))),color="#F8766D") +
@@ -271,7 +277,7 @@ ggplot()+
 ```
 
 ```{r}
-ggsave("Figures/age_LB_alldata_violent.pdf",width = 3.5, height = 2.5, units = "in")
+ggsave("Figures/age_LB_alldata_violent.pdf",plot = age_spline_viol_all, width = 3.5, height = 2.5, units = "in")
 ```
 
 
@@ -401,7 +407,7 @@ param_svm = list(
 res_rmse = data.frame(Group = 1:4, lm = NA, xgb = NA, rf = NA, svm = NA)
 ```
 
-## Group 1 models: predicting (raw - age polynomial) without using age variables or race
+## Group 1 models: predicting (raw - age spline) without using age variables or race
 
 ```{r}
 ### Create group 1 training data
@@ -905,7 +911,7 @@ knitr::kable(res_rmse)
 
 # Predictions using xgboost only
 
-We use the "Group 3" models but predict the raw score and the raw score minus all of the lower bounds we have fitted. Results from this section can be combined with Group 3 xgboost results above where we predicted the raw score minus the age lower bound only.
+We use the "Group 3" models but predict the raw score and the raw score minus all of the lower bounds we have fitted. Results from this section can be combined with Group 3 xgboost results above where we predicted the raw score minus the age lower bound only. These are the figures which are shown in the paper. 
 
 ## Predicting the raw score
 

@@ -271,22 +271,6 @@ data_before = key_events %>%
   inner_join(stat_people, by=c("person_id","screening_date")) # Should be 1-1 mapping between dataframes
 ```
 
-# Check dyn_arrest, dyn_charge  
-REMOVE
-```{r}
-charges = dyn_charge %>% filter(person_id == 4) 
-
-arrests = dyn_arrest %>% filter(person_id == 4)
-
-charge_df = charges$charge %>% as.data.frame()
-arrest_df = arrests$arrest %>% as.data.frame()
-
-charge_df
-arrest_df
-#length(unique(res_df$arrest_date))
-#res_df
-```
-
 
 ```{r}
 ### Compute features (e.g., number of priors) for each person_id/screening_date combination.

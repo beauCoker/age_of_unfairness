@@ -20,7 +20,6 @@ load("Table_construction.Rdata")
 
 ## Look up person IDs
 ```{r}
-
 features = features %>%
   # Add other useful information:
   inner_join(
@@ -41,13 +40,13 @@ features = features %>%
 Much better now. 
 ```{r}
 res_df = features %>% 
-        filter(name %in% c("steven brown", "glenn rodriguez")) %>%
+        filter(person_id %in% c(799, 1284, 10774, 1638, 8491, 1515, 1394, 8200, 5722, 6337, 6886, 10553, 3145, 3291, 11414, 7997, 1497, 11231, 11096, 11312)) %>%
         select(person_id, screening_date, name, p_charge, p_arrest) %>%
         mutate(arrest_check = p_charge>=p_arrest) 
   
 View(res_df)
 
 
-# table(res_df$arrest_check)
+table(res_df$arrest_check)
 ```
 
