@@ -15,8 +15,10 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction2.Rdata") #loading beau's version of data
+load("Table_construction.Rdata") #loading beau's version of data
+set.seed(12)
 ```
+
 
 
 ```{r}
@@ -31,7 +33,7 @@ features = features %>%
   ) %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
-    select(-c(offenses_within_30.x,offenses_within_30.y)) %>%
+    select(-c(offenses_within_30.y)) %>%
 
   # Create as many features as possible:
   mutate(

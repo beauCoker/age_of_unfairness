@@ -9,13 +9,15 @@ output: html_document
 knitr::opts_chunk$set(warning=F, message=F,echo = TRUE)
 ```
 
+
 ```{r}
 library(tidyverse)
 library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction2.Rdata")
+load("Table_construction.Rdata")
+set.seed(12)
 ```
 
 ```{r}
@@ -31,7 +33,7 @@ features = features %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
   #duplicate columns
-  select(-c(offenses_within_30.x,offenses_within_30.y)) %>%
+  select(-c(offenses_within_30.y)) %>%
   
   # Create as many features as possible:
   mutate(
@@ -208,7 +210,7 @@ features = features %>%
 ```{r}
 intercept(mdl_age_spline)
 slope(mdl_age_spline)
-
+summary.segmented(mdl_age_spline)$psi
 ```
 
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
