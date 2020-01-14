@@ -1,8 +1,10 @@
 ---
 title: "Violence Score"
 author: "Caroline Wang"
-output: html_notebook
 date: "April 18, 2019"
+output:
+  html_document: default
+  html_notebook: default
 purpose: checking data assumptions and exploratory analysis with the violence score
 ---
 
@@ -32,7 +34,7 @@ features = features %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
   #duplicate columns
-  select(-c(offenses_within_30.x,offenses_within_30.y)) %>%
+  # select(-c(offenses_within_30.x,offenses_within_30.y)) %>%
   
   # Create as many features as possible:
   mutate(

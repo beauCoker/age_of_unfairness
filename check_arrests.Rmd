@@ -23,7 +23,7 @@ load("Table_construction.Rdata")
 features = features %>%
   # Add other useful information:
   inner_join(
-    data_before_on %>% 
+    data_before %>% 
       select(person_id, screening_date, people) %>%
       unnest() %>%
       select(person_id, screening_date, race, sex, name),

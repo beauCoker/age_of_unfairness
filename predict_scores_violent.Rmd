@@ -372,10 +372,12 @@ ggsave("Figures/hist_noncomp_LB_violent.pdf",width = 5, height = 3, units = "in"
 # Predictions of (raw - age polynomial) using several ML methods
 
 There are a few groups of predictors we will use:
-* Group 1: without using age variables or race
-* Group 2: without using age variables but with race
-* Group 3: without using race but with age variables
+* Group 0: without using age variables or race 
+* Group 1: without using current age or race but with age at first offense
+* Group 2: without using current age  but with race and age at first offense
+* Group 3: without using race but with current age and age at first offense
 * Group 4: using age variables and race
+
 
 
 ```{r}
@@ -404,10 +406,117 @@ param_svm = list(
   gamma_scale = c(0.5,1,2)
 )
 
-res_rmse = data.frame(Group = 1:4, lm = NA, xgb = NA, rf = NA, svm = NA)
+res_rmse = data.frame(Group = 0:4, lm = NA, xgb = NA, rf = NA, svm = NA)
 ```
 
-## Group 1 models: predicting (raw - age spline) without using age variables or race
+## Group 0 models: predicting (raw - age spline) without using age variables or race
+
+
+```{r}
+### Create group 0 training data
+
+## Select features and round count features
+train = features_filt %>%
+  select(
+    #p_current_age,
+    # p_age_first_offense,
+    p_juv_fel_count,
+    p_felprop_violarrest,
+    p_murder_arrest,
+    p_felassault_arrest,
+    p_misdemassault_arrest,
+    #p_famviol_arrest,
+    p_sex_arrest,
+    p_weapons_arrest,
+    p_n_on_probation,
+    p_current_on_probation,
+    p_prob_revoke,
+    raw_score__age_spline)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(raw_score__age_spline ~ ., data=train)
+summary(mdl_lm)
+
+res_rmse[res_rmse$Group==0,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(46)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$raw_score__age_spline
+
+res_rmse[res_rmse$Group==0,]$xgb = rmse(pred, actual) # ADJUST GROUP
+
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab("Violent score - f(age)") +
+  ylab("XGBoost prediction")+
+  theme(
+    text = element_text(size=14),
+    axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(55656)
+
+mdl_rf = randomForest(
+  formula = raw_score__age_spline ~ .,
+  data = train
+)
+
+res_rmse[res_rmse$Group==0,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
+
+res_rmse[res_rmse$Group==0,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
+```
+
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
+```
+
+
+
+
+## Group 1 models: predicting (raw - age spline) without using current age or race but with age at first arrest
 
 ```{r}
 ### Create group 1 training data
