@@ -31,7 +31,7 @@ features = features %>%
   ) %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
-    select(-c(offenses_within_30.y)) %>%
+    # select(-c(offenses_within_30.y)) %>%
 
   # Create as many features as possible:
   mutate(
@@ -55,7 +55,7 @@ features = features %>%
     
     # Filters (TRUE for obserations to keep)
     filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, 
-    filt2 = offenses_within_30.x == 1,
+    filt2 = offenses_within_30 == 1,
     filt3 = !is.na(current_offense_date), 
     filt4 = current_offense_date <= current_offense_date_limit, 
     filt5 = p_current_age > 18 & p_current_age <= 65, 
@@ -412,11 +412,107 @@ param_svm = list(
   gamma_scale = c(0.5,1,2)
 )
 
-res_rmse = data.frame(Group = 1:5, lm = NA, xgb = NA, rf = NA, svm = NA)
+res_rmse = data.frame(Group = 0:5, lm = NA, xgb = NA, rf = NA, svm = NA)
+```
+
+## Group 0 models: predicting (raw score - age spline) without using current age, age at first offense or race
+
+```{r}
+### Create group 1 training data
+
+## Select features and round count features
+train = features_filt %>%
+  select(
+    #p_current_age,
+    # p_age_first_offense,
+    p_charge,
+    p_jail30,
+    p_prison,
+    p_probation,
+    raw_score__age_spline)
+
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(raw_score__age_spline ~ ., data=train)
+summary(mdl_lm)
+
+res_rmse[res_rmse$Group==0,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(923)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$raw_score__age_spline
+
+res_rmse[res_rmse$Group==0,]$xgb = rmse(pred, actual) # ADJUST GROUP
+
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab(expression(General~score~-~f[age])) +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(784)
+
+mdl_rf = randomForest(
+  formula = raw_score__age_spline ~ .,
+  data = train
+)
+
+res_rmse[res_rmse$Group==0,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
+
+res_rmse[res_rmse$Group==0,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
 ```
 
 
-## Group 1 models: predicting (raw score - age spline) without using age variables or race
+
+## Group 1 models: predicting (raw score - age spline) without using current age or race
 
 ```{r}
 ### Create group 1 training data
@@ -511,48 +607,6 @@ res_rmse[res_rmse$Group==1,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spl
 rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
 ```
 
-
-
-
-# Extra Group: predict age remainder without age at first arrest, current age, and race
-
-```{r}
-### Create group 2 training data
-
-## Select features and round count features
-train = features_filt %>%
-  select(
-    #p_current_age,
-    # p_age_first_offense,
-    p_charge,
-    p_jail30,
-    p_prison,
-    p_probation,
-    raw_score__age_spline)
-
-## Format for xgboost
-train_xgb = xgb.DMatrix(
-  "data" = train %>% select(-raw_score__age_spline) %>% as.matrix(),
-  "label" = train %>% select(raw_score__age_spline) %>% as.matrix()
-
-)
-
-set.seed(923)
-mdl_xgb = fit_xgboost(train_xgb, param)
-
-pred = predict(mdl_xgb, newdata=train_xgb)
-actual = train$raw_score__age_spline
-
-rmse(pred, actual) 
-
-
-```
-
-RMSE without age at first arrest is .5358, RMSE with age at first arrest is .5227 (get higher error without age at first arrest)
-```{r}
-# compare to group 1 (with age-first-arrest, but without current age and race)
-res_rmse
-```
 
 
 ## Group 2 models: predicting (raw score - age spline) without using age variables but with race

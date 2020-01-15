@@ -20,7 +20,7 @@ load("Table_construction.Rdata")
 
 ## Look up person IDs
 ```{r}
-features = features %>%
+features = features %>% # features is constructed from data_before
   # Add other useful information:
   inner_join(
     data_before %>% 
@@ -28,25 +28,24 @@ features = features %>%
       unnest() %>%
       select(person_id, screening_date, race, sex, name),
     by = c("person_id","screening_date")
-  ) %>%
-  inner_join(features_on, by = c("person_id","screening_date")) %>%
-  inner_join(outcomes, by = c("person_id","screening_date")) %>%
-    select(-c(offenses_within_30)) 
+  ) 
 
 ```
 
 
-# Potential problem: more arrests than charges? Must check data processing.
-Much better now. 
+## Check arrests and charges for selected individuals
 ```{r}
 res_df = features %>% 
-        filter(person_id %in% c(11312)) %>%
-        # select(person_id, screening_date, name, p_charge, p_arrest, current_offense_date, ) %>%
+        filter(person_id %in% c(1, 2, 3, 4, 5)) %>%
+        select(person_id, 
+               screening_date, 
+               name, 
+               p_charge, 
+               p_arrest, 
+               current_offense_date) %>%
         mutate(arrest_check = p_charge>=p_arrest) 
-  
+
 View(res_df)
 
-
-table(res_df$arrest_check)
 ```
 
