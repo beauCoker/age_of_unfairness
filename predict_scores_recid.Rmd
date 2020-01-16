@@ -15,7 +15,10 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction.Rdata") 
+arrests = TRUE # use arrests to compute crim inv subscale
+load("Table_construction.Rdata")
+set.seed(12)
+
 ```
 
 
@@ -48,11 +51,16 @@ features = features %>%
     race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
     
     # Subscales:
-    crim_inv = p_charge+
-      p_jail30+
-      p_prison+
-      p_probation,
-    
+    crim_inv = ifelse(rep(arrests, nrow(features)), #bool
+                      p_arrest+ 
+                      p_jail30+
+                      p_prison+
+                      p_probation,
+                      p_charge+
+                      p_jail30+
+                      p_prison+
+                      p_probation),
+  
     # Filters (TRUE for obserations to keep)
     filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, 
     filt2 = offenses_within_30 == 1,
@@ -187,7 +195,12 @@ features = features %>%
 ```
 
 ```{r}
+intercept(mdl_age_spline)
+slope(mdl_age_spline)
 summary.segmented(mdl_age_spline)$psi
+```
+
+```{r}
 break1 =  summary.segmented(mdl_age_spline)$psi[1,2]
 break2 =  summary.segmented(mdl_age_spline)$psi[2,2]
 
@@ -280,8 +293,6 @@ ggsave("Figures/age_LB_alldata_general.pdf",width = 3.5, height = 2.5, units = "
 
 
 
-
-
 ## Examine Criminal Involvment lower bound (none found)
 
 
@@ -304,12 +315,24 @@ features %>%
                        values=c("TRUE"="#619CFF","FALSE"="#00BA38"))
 ```
 
-
 ```{r}
-ggsave("Figures/crim_inv_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
+test = features %>% filter(crim_inv == 20, decile_score == 2)
+View(test)
 ```
 
-Also look at just number of priors
+
+```{r}
+
+if (arrests == TRUE){
+  ggsave("Figures/crim_inv_LB_general_arrests.pdf",width = 3.5, height = 2.5, units = "in")
+} else{
+  ggsave("Figures/crim_inv_LB_general_charges.pdf",width = 3.5, height = 2.5, units = "in")
+
+}
+
+```
+
+Also look at just number of prior charges
 
 ```{r}
 features %>%
@@ -332,7 +355,33 @@ features %>%
 
 
 ```{r}
-ggsave("Figures/priors_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
+ggsave("Figures/prior_charges_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
+```
+
+
+Look at prior arrests
+```{r}
+features %>%
+  filter(filt1,filt3) %>% 
+  select(p_arrest, raw_score__age_spline, filt8) %>%
+  ggplot() +
+  geom_point(aes(x=p_arrest,y=raw_score__age_spline,color=filt8),alpha=.5) +
+  xlim(c(0,70))+
+  theme_bw()+
+  xlab("Number of prior arrests") +
+  ylab(expression(General~score~-~f[age]))  +
+  theme(text = element_text(size=12),
+        axis.text=element_text(size=12),
+        legend.position="top") +
+  scale_color_manual(name=element_blank(),
+                       breaks=c("TRUE", "FALSE"),
+                       labels=c(expression(Above~f[age]), expression(Below~f[age])),
+                       values=c("TRUE"="#619CFF","FALSE"="#00BA38"))
+
+```
+
+```{r}
+ggsave("Figures/prior_arrests_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
 ```
 
 

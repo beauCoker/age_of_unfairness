@@ -14,7 +14,10 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction.Rdata") 
+load("Table_construction_arrests_hist_violence.Rdata") # use arrests version of Hist. Violence subscale
+# load("Table_construction.Rdata") 
+set.seed(12)
+
 ```
 
 
@@ -56,16 +59,16 @@ features = features %>%
     
     # Subscales:
     vio_hist = p_juv_fel_count+
-      p_felprop_violarrest+
-      p_murder_arrest+
-      p_felassault_arrest+
-      p_misdemassault_arrest+
-      #p_famviol_arrest+ #because no observations have nonzero for this
-      p_sex_arrest+
-      p_weapons_arrest,
+        p_felprop_violarrest+
+        p_murder_arrest+
+        p_felassault_arrest+
+        p_misdemassault_arrest+
+        #p_famviol_arrest+ #because no observations have nonzero for this
+        p_sex_arrest+
+        p_weapons_arrest,
     history_noncomp = p_prob_revoke+
-      p_probation+p_current_on_probation+
-      p_n_on_probation,
+        p_probation+p_current_on_probation+
+        p_n_on_probation,
     
     # Filters (TRUE for obserations to keep)
     filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, 
