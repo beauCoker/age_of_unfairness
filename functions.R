@@ -1,5 +1,15 @@
-compute_features = function(person_id,screening_date,first_offense_date,current_offense_date,
-                            arrest,charge,jail,prison,prob,people) {
+compute_features = function(person_id,
+                            screening_date,
+                            first_offense_date,
+                            current_offense_date,
+                            offenses_within_30, 
+                            before_cutoff_date,
+                            arrest,
+                            charge,
+                            jail,
+                            prison,
+                            prob,
+                            people) {
   ### Computes features (e.g., number of priors) for each person_id/screening_date.
 
   # pmap coerces dates to numbers so convert back to date.
@@ -17,45 +27,117 @@ compute_features = function(person_id,screening_date,first_offense_date,current_
   
   # Number of felonies
   out$p_felony_count_person = ifelse(is.null(charge), 0, sum(charge$is_felony, na.rm = TRUE))
-  
+
   # Number of misdemeanors
   out$p_misdem_count_person  = ifelse(is.null(charge), 0, sum(charge$is_misdem, na.rm = TRUE))
-  
+
   # Number of violent charges
   out$p_charge_violent  = ifelse(is.null(charge), 0, sum(charge$is_violent, na.rm = TRUE))
-  
+
   #p_current_age: Age at screening date
   out$p_current_age = floor(as.numeric(as.period(interval(people$dob,screening_date)), "years"))
-  
-  #p_age_first_offense: Age at first offense 
+
+  #p_age_first_offense: Age at first offense
   out$p_age_first_offense = floor(as.numeric(as.period(interval(people$dob,first_offense_date)), "years"))
-  
+
   ### History of Violence
+
+   # p_juv_fel_count
+   out$p_juv_fel_count = ifelse(is.null(charge), 0, sum(charge$is_felony & charge$is_juv,na.rm=TRUE))
+
+   # p_felprop_violarrest
+   out$p_felprop_violarrest = ifelse(is.null(charge), 0,sum(charge$is_felprop_violarrest, na.rm = TRUE))
+
+   #p_murder_arrest
+   out$p_murder_arrest = ifelse(is.null(charge), 0, sum(charge$is_murder, na.rm = TRUE))
+
+   #p_felassault_arrest
+   out$p_felassault_arrest = ifelse(is.null(charge), 0, sum(charge$is_felassault_arrest, na.rm = TRUE))
+
+   #p_misdemassault_arrest
+   out$p_misdemassault_arrest = ifelse(is.null(charge), 0, sum(charge$is_misdemassault_arrest, na.rm = TRUE))
+
+   #p_famviol_arrest
+   out$p_famviol_arrest = ifelse(is.null(charge), 0, sum(charge$is_family_violence, na.rm = TRUE))
+
+   #p_sex_arrest
+   out$p_sex_arrest = ifelse(is.null(charge), 0, sum(charge$is_sex_offense, na.rm = TRUE))
+
+   #p_weapons_arrest
+   out$p_weapons_arrest =  ifelse(is.null(charge), 0, sum(charge$is_weapons, na.rm = TRUE))
   
-  #p_juv_fel_count
-  #out$p_juv_fel_count = ifelse(is.null(people), 0, people$juv_fel_count)
-  out$p_juv_fel_count = ifelse(is.null(charge), 0, sum(charge$is_felony & charge$is_juv,na.rm=TRUE))
+  #  # Attempted Using arrests instead of charges to compute History of Violence
+  # if(is.null(charge)){
+  #   out$p_juv_fel_count = 0
+  #   out$p_felprop_violarrest = 0
+  #   out$p_murder_arrest = 0
+  #   out$p_felassault_arrest = 0
+  #   out$p_misdemassault_arrest = 0
+  #   out$p_famviol_arrest = 0
+  #   out$p_sex_arrest = 0
+  #   out$p_weapons_arrest = 0
+  # }
+  # else{ # we assume only 1 arrest/day. If arrest has at least one charge of the type we are concerned with
+  #   # (e.g. felony) we consider it an arrest of that type
+  #   # p_juv_fel_count
+  #   juv_fel_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(juv_charges = sum(is_juv, na.rm=TRUE),
+  #               fel_charges = sum(is_felony), na.rm = TRUE)
+  # 
+  #   out$p_juv_fel_count = sum(juv_fel_arrests$juv_charges > 0 & juv_fel_arrests$fel_charges > 0,na.rm=TRUE)
+  # 
+  #   #p_felprop_violarrest
+  #   felprop_violarrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(felprop_violcharges = sum(is_felprop_violarrest, na.rm=TRUE))
+  # 
+  #   out$p_felprop_violarrest = sum(felprop_violarrests$felprop_violcharges > 0, na.rm = TRUE)
+  # 
+  #   #p_murder_arrest
+  #   murder_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(murder_charges = sum(is_murder, na.rm=TRUE))
+  # 
+  #   out$p_murder_arrest = sum(murder_arrests$murder_charges > 0, na.rm = TRUE)
+  # 
+  #   #p_felassault_arrest
+  #   felassault_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(felassault_charges = sum(is_felassault_arrest, na.rm=TRUE))
+  # 
+  #   out$p_felassault_arrest = sum(felassault_arrests$felassault_charges > 0, na.rm = TRUE)
+  # 
+  #   #p_misdemassault_arrest
+  #   misdemassault_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(misdemassault_charges = sum(is_misdemassault_arrest, na.rm=TRUE))
+  # 
+  #   out$p_misdemassault_arrest = sum(misdemassault_arrests$misdemassault_charges > 0, na.rm = TRUE)
+  # 
+  #   #p_famviol_arrest
+  #   famviol_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(famviol_charges = sum(is_family_violence, na.rm=TRUE))
+  # 
+  #   out$p_famviol_arrest = sum(famviol_arrests$famviol_charges > 0, na.rm = TRUE)
+  # 
+  #   #p_sex_arrest
+  #   sex_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(sex_charges = sum(is_sex_offense, na.rm=TRUE))
+  # 
+  #   out$p_sex_arrest = sum(sex_arrests$sex_charges > 0, na.rm = TRUE)
+  # 
+  #   #p_weapons_arrest
+  #   weapons_arrests = charge %>%
+  #     group_by(date_charge_filed) %>%
+  #     summarize(weapons_charges = sum(is_sex_offense, na.rm=TRUE))
+  # 
+  #   out$p_weapons_arrest =  sum(weapons_arrests$weapons_charges > 0, na.rm = TRUE)
+  # 
+  # }
   
-  #p_felprop_violarrest
-  out$p_felprop_violarrest = ifelse(is.null(charge), 0,sum(charge$is_felprop_violarrest, na.rm = TRUE))
-  
-  #p_murder_arrest
-  out$p_murder_arrest = ifelse(is.null(charge), 0, sum(charge$is_murder, na.rm = TRUE))
-  
-  #p_felassault_arrest
-  out$p_felassault_arrest = ifelse(is.null(charge), 0, sum(charge$is_felassault_arrest, na.rm = TRUE))
-  
-  #p_misdemassault_arrest
-  out$p_misdemassault_arrest = ifelse(is.null(charge), 0, sum(charge$is_misdemassault_arrest, na.rm = TRUE))
-  
-  #p_famviol_arrest
-  out$p_famviol_arrest = ifelse(is.null(charge), 0, sum(charge$is_family_violence, na.rm = TRUE))
-  
-  #p_sex_arrest
-  out$p_sex_arrest = ifelse(is.null(charge), 0, sum(charge$is_sex_offense, na.rm = TRUE))
-  
-  #p_weapons_arrest
-  out$p_weapons_arrest =  ifelse(is.null(charge), 0, sum(charge$is_weapons, na.rm = TRUE))
   
   ### History of Non-Compliance
   
@@ -78,7 +160,7 @@ compute_features = function(person_id,screening_date,first_offense_date,current_
   
   # Number of charges / arrests
   out$p_charge = ifelse(is.null(charge), 0, nrow(charge))
-  out$p_arrest = ifelse(is.null(arrest), 0, nrow(arrest))
+  out$p_arrest = ifelse(is.null(arrest), 0, length(unique(arrest$arrest_date)))
   
   # Number of times sentenced to jail/prison 30 days or more
   out$p_jail30 = ifelse(is.null(prison), 0, sum(jail$sentence_days >= 30, na.rm=TRUE))
@@ -93,8 +175,18 @@ compute_features = function(person_id,screening_date,first_offense_date,current_
   return(out)
 }
 
-compute_features_on = function(person_id,screening_date,first_offense_date,current_offense_date,
-                               arrest,charge,jail,prison,prob,people) {
+compute_features_on = function(person_id,
+                               screening_date,
+                               first_offense_date,
+                               current_offense_date,
+                               offenses_within_30,
+                               before_cutoff_date,
+                               arrest,
+                               charge,
+                               jail,
+                               prison,
+                               prob,
+                               people) {
   ### Computes features related to current offense
   
   # pmap coerces dates to numbers so convert back to date.
@@ -113,8 +205,17 @@ compute_features_on = function(person_id,screening_date,first_offense_date,curre
   return(out)
 }
 
-compute_outcomes = function(person_id,screening_date,first_offense_date,current_offense_date,
-                            arrest,charge,jail,prison,prob,people){
+compute_outcomes = function(person_id,
+                            screening_date,
+                            first_offense_date,
+                            current_offense_date,
+                            before_cutoff_date,
+                            arrest,
+                            charge,
+                            jail,
+                            prison,
+                            prob,
+                            people){
   
   out = list()
   
