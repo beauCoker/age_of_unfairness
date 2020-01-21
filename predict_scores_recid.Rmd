@@ -15,7 +15,6 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-arrests = TRUE # use arrests to compute crim inv subscale
 load("Table_construction.Rdata")
 set.seed(12)
 
@@ -51,16 +50,10 @@ features = features %>%
     race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
     
     # Subscales:
-    crim_inv = ifelse(rep(arrests, nrow(features)), #bool
-                      p_arrest+ 
-                      p_jail30+
-                      p_prison+
-                      p_probation,
-                      
-                      p_charge+
-                      p_jail30+
-                      p_prison+
-                      p_probation),
+    crim_inv = p_arrest+ 
+              p_jail30+
+              p_prison+
+              p_probation,
   
     # Filters (TRUE for obserations to keep)
     filt1 = `Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1, 
@@ -268,36 +261,14 @@ ggsave("Figures/age_LB_alldata_general.pdf", plot = age_spline_recid_all, width 
 
 ## Examine Criminal Involvement lower bound
 
-### Look at COMPAS age remainder vs number of prior charges/arrests individually (both are important items in the crim inv subscale)
+### Look at COMPAS age remainder vs number of prior arrests  (important item in the crim inv subscale)
 ```{r}
-prior_charges_LB_general = features %>%
-        filter(filt1,filt3) %>% 
-        select(p_charge, raw_score__age_spline, filt8) %>%
-        ggplot() +
-        geom_point(aes(x=p_charge,y=raw_score__age_spline,color=filt8),alpha=.5) +
-        xlim(c(0,70))+
-        theme_bw()+
-        xlab("Number of prior charges") +
-        ylab(expression(General~score~-~f[age]))  +
-        theme(text = element_text(size=12),
-              axis.text=element_text(size=12),
-              legend.position="top") +
-        scale_color_manual(name=element_blank(),
-                           breaks=c("TRUE", "FALSE"),
-                           labels=c(expression(Above~f[age]),
-                                    expression(Below~f[age])),
-                          values=c("TRUE"="#619CFF","FALSE"="#00BA38"))
-
-prior_charges_LB_general
-
-
-### Look at COMPAS age remainder vs prior arrests 
 prior_arrests_LB_general = features %>%
           filter(filt1,filt3) %>% 
           select(p_arrest, raw_score__age_spline, filt8) %>%
           ggplot() +
           geom_point(aes(x=p_arrest,y=raw_score__age_spline,color=filt8),alpha=.5) +
-          xlim(c(0,70))+
+          xlim(c(0,45))+
           theme_bw()+
           xlab("Number of prior arrests") +
           ylab(expression(General~score~-~f[age]))  +
@@ -316,7 +287,6 @@ prior_arrests_LB_general
 
 
 ```{r}
-ggsave("Figures/prior_charges_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
 ggsave("Figures/prior_arrests_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
 ```
 
@@ -328,7 +298,7 @@ features %>%
   select(crim_inv, raw_score__age_spline, filt8) %>%
   ggplot() +
     geom_point(aes(x=crim_inv,y=raw_score__age_spline,color=filt8),alpha=.5) +
-    xlim(c(0,70))+
+    xlim(c(0,45))+
     theme_bw()+
     xlab("Sum of Criminal Involvement Components") +
     ylab(expression(General~score~-~f[age]))  +
@@ -343,13 +313,7 @@ features %>%
 
 
 ```{r}
-
-if (arrests == TRUE){
-  ggsave("Figures/crim_inv_LB_general_arrests.pdf",width = 3.5, height = 2.5, units = "in")
-} else{
-  ggsave("Figures/crim_inv_LB_general_charges.pdf",width = 3.5, height = 2.5, units = "in")
-
-}
+ggsave("Figures/crim_inv_LB_general_arrests.pdf",width = 3.5, height = 2.5, units = "in")
 
 ```
 
@@ -546,12 +510,13 @@ crim_inv_spline_recid =
   ylab("General Score - f_age \n") +
   theme(text = element_text(size=9),
         axis.text=element_text(size=7),
-        legend.position = c(.30,.95),
+        legend.position = c(.55,1),
         legend.title = element_blank(),
         legend.justification = c("right", "top"),
-        legend.key = element_rect(fill = "aliceblue"),
-        legend.background = element_rect(fill="aliceblue",
-                                  size=0.5, linetype="solid")
+        legend.key = element_rect(fill = NA),
+        legend.background = element_rect(fill=NA,
+        size=0.2,
+        linetype="solid")
         )
 
 crim_inv_spline_recid
@@ -581,6 +546,12 @@ crim_inv_spline_recid_all =
         legend.position="top") 
 
 crim_inv_spline_recid_all
+
+```
+
+```{r}
+ggsave("Figures/crim_inv_spline_general.pdf", plot = crim_inv_spline_recid, width = 3.5, height = 2.5, units = "in")
+ggsave("Figures/crim_inv_spline_alldata_general.pdf", plot = crim_inv_spline_recid_all, width = 3.5, height = 2.5, units = "in")
 
 ```
 
@@ -635,7 +606,7 @@ train = features_filt %>%
   select(
     #p_current_age,
     # p_age_first_offense,
-    p_charge,
+    p_arrest,
     p_jail30,
     p_prison,
     p_probation,
@@ -732,7 +703,7 @@ train = features_filt %>%
   select(
     #p_current_age,
     p_age_first_offense,
-    p_charge,
+    p_arrest,
     p_jail30,
     p_prison,
     p_probation,
@@ -829,7 +800,7 @@ train = features_filt %>%
   select(
     #p_current_age,
     p_age_first_offense,
-    p_charge,
+    p_arrest,
     p_jail30,
     p_prison,
     p_probation,
@@ -948,7 +919,7 @@ train = features_filt %>%
   select(
     p_current_age,
     p_age_first_offense,
-    p_charge,
+    p_arrest,
     p_jail30,
     p_prison,
     p_probation,
@@ -1055,7 +1026,7 @@ train = features_filt %>%
   select(
     p_current_age,
     p_age_first_offense,
-    p_charge,
+    p_arrest,
     p_jail30,
     p_prison,
     p_probation,
@@ -1207,7 +1178,6 @@ train = features_filt %>%
   select(
     p_current_age,
     p_age_first_offense,
-    p_charge,
     p_arrest,
     p_jail30,
     p_prison30,
@@ -1325,7 +1295,6 @@ train = features_filt %>%
   select(
     p_current_age,
     p_age_first_offense,
-    # p_charge,
     p_arrest,
     p_jail30,
     p_prison,
@@ -1386,7 +1355,6 @@ train = features_filt %>%
   select(
     p_current_age,
     p_age_first_offense,
-    # p_charge,
     p_arrest,
     p_jail30,
     p_prison,
@@ -1460,7 +1428,7 @@ mdl_glm = glm(compas_high ~
                 age_high +
                 age_low +
                 as.factor(race) +
-                p_charge +
+                p_arrest +
                 is_misdem +
                 recid,
                 family=binomial(link='logit'), data=propub)
