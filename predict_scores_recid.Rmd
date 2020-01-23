@@ -341,6 +341,57 @@ ggsave("Figures/crim_inv_LB_general_arrests.pdf",width = 3.5, height = 2.5, unit
 ```
 
 
+Try various weightings of inputs criminal involvement subscale (i.e., instead of evenly weighted) (optional)
+
+```{r, eval=FALSE}
+dir.create("./Figures/crim_inv_weightings_general/")
+crim_inv_weights_perms = expand.grid(arrest=seq(1,3,1), 
+                                     jail30=seq(1,3,1), 
+                                     prison=seq(1,3,1), 
+                                     probation=seq(1,3,1))
+for (i in 1:nrow(crim_inv_weights_perms)){
+  
+weights = unlist(crim_inv_weights_perms[i,])
+title = paste0('arrest=',weights['arrest'],
+                '_jail30=',weights['jail30'],
+                '_prison=',weights['prison'],
+                '_probation=',weights['probation'])
+
+p <- features %>%
+  mutate(crim_inv = 
+      weights['arrest']*p_arrest+
+      weights['jail30']*p_jail30+
+      weights['prison']*p_prison+
+      weights['probation']*p_probation) %>%
+  filter(filt1,filt3, filt5) %>% 
+  select(crim_inv, raw_score__age_spline, filt8) %>%
+  ggplot() +
+    geom_point(aes(x=crim_inv,y=raw_score__age_spline,color=filt8),alpha=.5) +
+    xlim(c(0,45))+
+    theme_bw()+
+    xlab("Sum of Criminal Involvement Components") +
+    ylab(expression(General~score~-~f[age]))  +
+    theme(text = element_text(size=12),
+          plot.title = element_text(size=8),
+          axis.text=element_text(size=12),
+          legend.position="top") +
+    scale_color_manual(name=element_blank(),
+                         breaks=c("TRUE", "FALSE"),
+                         labels=c(expression(Above~f[age]), expression(Below~f[age])),
+                         values=c("TRUE"="#619CFF","FALSE"="#00BA38")) +
+  ggtitle(title)
+
+
+
+
+
+  ggsave(paste0("Figures/crim_inv_weightings_general/",title,".png"),plot=p,width = 3.5, height = 2.5, units = "in")
+}
+```
+
+
+
+
 ### Fit lower bound to COMPAS age remainder vs. the sum of criminal involvement subscale items 
 
 ```{r}
@@ -582,6 +633,7 @@ There are a few groups of predictors we will use:
 * Group 2: without using current age but with race and age at first arrest 
 * Group 3: without using race but with current age and age at first arrest
 * Group 4: using age variables and race
+* Group 5: test
 
 
 ```{r}
@@ -611,13 +663,13 @@ param_svm = list(
   gamma_scale = c(0.5,1,2)
 )
 
-res_rmse = data.frame(Group = 0:5, lm = NA, xgb = NA, rf = NA, svm = NA)
+res_rmse = data.frame(Group = 0:8, lm = NA, xgb = NA, rf = NA, svm = NA)
 ```
 
 ## Group 0 models: predicting (raw score - age spline) without using current age, age at first offense or race
 
 ```{r}
-### Create group 1 training data
+### Create group 0 training data
 
 ## Select features and round count features
 train = features_filt %>%
@@ -1295,6 +1347,276 @@ rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
 knitr::kable(res_rmse)
 ```
 
+
+## Predictions of (raw - age polynomial - g_crim_inv) using several ML methods
+
+There are a few groups of predictors we will use:
+* Group 6: using criminal history (only age variables)
+* Group 7: without age variables (only criminal history)
+* Group 8: with everything (age and criminal history)
+
+Race not included in any of groups 6-8.
+
+
+## Group 6 models: predicting (raw score - age spline - g_crim_inv) using only age and age at first arrest
+
+```{r}
+### Create group 6 training data
+## Select features and round count features
+train = features_filt %>%
+  select(
+    p_current_age,
+     p_age_first_offense,
+    #p_arrest,
+    #p_jail30,
+    #p_prison,
+    #p_probation,
+    raw_score__age_spline__crim_inv_spline)
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-raw_score__age_spline__crim_inv_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline__crim_inv_spline) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(raw_score__age_spline__crim_inv_spline ~ ., data=train)
+summary(mdl_lm)
+res_rmse[res_rmse$Group==6,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(923)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$raw_score__age_spline__crim_inv_spline
+res_rmse[res_rmse$Group==6,]$xgb = rmse(pred, actual) # ADJUST GROUP
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab(expression(General~score~-~f[age])) +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(784)
+mdl_rf = randomForest(
+  formula = raw_score__age_spline__crim_inv_spline ~ .,
+  data = train
+)
+res_rmse[res_rmse$Group==6,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(raw_score__age_spline__crim_inv_spline ~ ., train, param_svm)
+res_rmse[res_rmse$Group==6,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+## Group 7 models: predicting (raw score - age spline - g_crim_inv) without using current age, age at first offense or race
+
+```{r}
+### Create group 7 training data
+## Select features and round count features
+train = features_filt %>%
+  select(
+    #p_current_age,
+    # p_age_first_offense,
+    p_arrest,
+    p_jail30,
+    p_prison,
+    p_probation,
+    raw_score__age_spline__crim_inv_spline)
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-raw_score__age_spline__crim_inv_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline__crim_inv_spline) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(raw_score__age_spline__crim_inv_spline ~ ., data=train)
+summary(mdl_lm)
+res_rmse[res_rmse$Group==7,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(923)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$raw_score__age_spline__crim_inv_spline
+res_rmse[res_rmse$Group==7,]$xgb = rmse(pred, actual) # ADJUST GROUP
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab(expression(General~score~-~f[age])) +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(784)
+mdl_rf = randomForest(
+  formula = raw_score__age_spline__crim_inv_spline ~ .,
+  data = train
+)
+res_rmse[res_rmse$Group==7,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(raw_score__age_spline__crim_inv_spline ~ ., train, param_svm)
+res_rmse[res_rmse$Group==7,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
+```
+
+
+## Group 8 models: predicting (raw score - age spline - g_crim_inv) using everything
+
+```{r}
+### Create group 8 training data
+## Select features and round count features
+train = features_filt %>%
+  select(
+    p_current_age,
+    p_age_first_offense,
+    p_arrest,
+    p_jail30,
+    p_prison,
+    p_probation,
+    raw_score__age_spline__crim_inv_spline)
+## Format for xgboost
+train_xgb = xgb.DMatrix(
+  "data" = train %>% select(-raw_score__age_spline__crim_inv_spline) %>% as.matrix(),
+  "label" = train %>% select(raw_score__age_spline__crim_inv_spline) %>% as.matrix()
+)
+```
+
+### Model 1: Linear model
+
+```{r}
+mdl_lm = lm(raw_score__age_spline__crim_inv_spline ~ ., data=train)
+summary(mdl_lm)
+res_rmse[res_rmse$Group==8,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Model 2: xgboost
+
+```{r}
+set.seed(923)
+mdl_xgb = fit_xgboost(train_xgb, param)
+```
+
+```{r}
+### xgboost plot
+pred = predict(mdl_xgb, newdata=train_xgb)
+actual = train$raw_score__age_spline__crim_inv_spline
+res_rmse[res_rmse$Group==8,]$xgb = rmse(pred, actual) # ADJUST GROUP
+axis_min = min(min(pred),min(actual))
+axis_max = max(max(pred),max(actual))
+data.frame(xgboost = pred, compas=actual) %>%
+  ggplot() +
+  geom_point(aes(x=compas,y=xgboost), alpha=.3) +
+  geom_abline(slope=1, color="red")+
+  xlim(c(axis_min,axis_max)) +
+  ylim(c(axis_min,axis_max)) +
+  coord_fixed() +
+  theme_bw()+
+  xlab(expression(General~score~-~f[age])) +
+  ylab("XGBoost prediction")+
+  theme(
+        text = element_text(size=14),
+        axis.text=element_text(size=14))
+```
+
+```{r}
+### Variable importance
+xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
+```
+
+### Model 3: random forest
+
+```{r}
+set.seed(784)
+mdl_rf = randomForest(
+  formula = raw_score__age_spline__crim_inv_spline ~ .,
+  data = train
+)
+res_rmse[res_rmse$Group==8,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Model 4: SVM
+
+```{r}
+mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
+res_rmse[res_rmse$Group==8,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
+```
+
+### Cleanup
+```{r}
+rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
+```
 
 
 
