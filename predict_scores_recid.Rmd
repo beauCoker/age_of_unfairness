@@ -263,6 +263,27 @@ ggsave("Figures/age_LB_alldata_general.pdf", plot = age_spline_recid_all, width 
 
 ### Look at COMPAS age remainder vs number of prior arrests  (important item in the crim inv subscale)
 ```{r}
+prior_charges_LB_general = features %>%
+          filter(filt1,filt3) %>% 
+          select(p_charge, raw_score__age_spline, filt8) %>%
+          ggplot() +
+          geom_point(aes(x=p_charge,y=raw_score__age_spline,color=filt8),alpha=.5) +
+          xlim(c(0,45))+
+          theme_bw()+
+          xlab("Number of prior charges") +
+          ylab(expression(General~score~-~f[age]))  +
+          theme(text = element_text(size=12),
+                axis.text=element_text(size=12),
+                legend.position="top") +
+          scale_color_manual(name=element_blank(),
+                               breaks=c("TRUE", "FALSE"),
+                               labels=c(expression(Above~f[age]), 
+                                        expression(Below~f[age])),
+                               values=c("TRUE"="#619CFF","FALSE"="#00BA38"))
+
+prior_charges_LB_general
+
+
 prior_arrests_LB_general = features %>%
           filter(filt1,filt3) %>% 
           select(p_arrest, raw_score__age_spline, filt8) %>%
@@ -287,7 +308,9 @@ prior_arrests_LB_general
 
 
 ```{r}
-ggsave("Figures/prior_arrests_LB_general.pdf",width = 3.5, height = 2.5, units = "in")
+ggsave("Figures/prior_arrests_LB_general.pdf", plot = prior_arrests_LB_general, width = 3.5, height = 2.5, units = "in")
+ggsave("Figures/prior_charges_LB_general.pdf", plot=prior_charges_LB_general, width = 3.5, height = 2.5, units = "in")
+
 ```
 
 
@@ -434,7 +457,7 @@ ggplot()+
 Want to keep track of points that are below the age splines and points that are below the crim inv polynomial
 ```{r}
 features_crim_inv_spline = features %>% 
-    filter(filt1, filt5, filt8, filt9, crim_inv <=40) 
+    filter(filt1, filt3, filt5, filt8, filt9, crim_inv <=40) 
   
 
 # points we will use to construct linear crim inv spline 
@@ -445,12 +468,12 @@ lb_filt_crim_inv = features_crim_inv_spline %>%
 
 # points filtered out because they are below the age spline
 lb_age_spline_outliers = features %>% 
-                         filter(filt1, filt5, !filt8, crim_inv <= 40) %>% 
+                         filter(filt1, filt3, filt5, !filt8, crim_inv <= 40) %>% 
                          mutate(reason = "Below age spline")
 
 # points filtered out because they are below the crim. inv. poly.
 lb_crim_inv_poly_outliers = features %>% 
-                            filter(filt1, filt5, filt8, !filt9, crim_inv <= 40) %>%
+                            filter(filt1, filt3, filt5, filt8, !filt9, crim_inv <= 40) %>%
                             mutate(reason = "Below crim. inv. polynomial")
 
 lb_crim_inv_all = lb_filt_crim_inv %>% 
@@ -466,7 +489,7 @@ Generating linear splines to fit the lower bound of the COMPAS age remainder
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
 ```{r}
 mdl_crim_inv_spline <- segmented(lm(raw_score__age_spline ~ crim_inv, data = lb_filt_crim_inv), 
-                            seg.Z = ~crim_inv, psi = list(crim_inv = c(9,29)),
+                            seg.Z = ~crim_inv, psi = list(crim_inv = c(9)),
   control = seg.control(display = FALSE)
 )
 #Add Filter 10
@@ -487,11 +510,9 @@ summary.segmented(mdl_crim_inv_spline)$psi
 Plot crim inv spline 
 ```{r}
 break1 =  summary.segmented(mdl_crim_inv_spline)$psi[1,2]
-break2 =  summary.segmented(mdl_crim_inv_spline)$psi[2,2]
 
 xx1 = seq(xmin_crim_inv,break1, length.out=1000)
-xx2 = seq(break1,break2, length.out=1000)
-xx3 = seq(break2,xmax_crim_inv, length.out=1000)
+xx2 = seq(break1,xmax_crim_inv, length.out=1000)
 
 crim_inv_spline_recid = 
   ggplot()+
@@ -501,18 +522,15 @@ crim_inv_spline_recid =
                 color="darkorange1", size = 1) +
   geom_line(aes(x=xx2, y = predict(mdl_crim_inv_spline, newdata=data.frame(crim_inv=xx2))),
                 color="cyan3", size = 1) +
-  geom_line(aes(x=xx3, y = predict(mdl_crim_inv_spline, newdata=data.frame(crim_inv=xx3))),
-                color="seagreen3", size = 1) +
-
   theme_bw()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
-  xlab("\n Sum of Criminal Involvement Subscale Components") +
+  xlab("Sum of Criminal Involvement \n Subscale Components") +
   ylab("General Score - f_age \n") +
   theme(text = element_text(size=9),
         axis.text=element_text(size=7),
-        legend.position = c(.55,1),
+        legend.position = c(0,1),
         legend.title = element_blank(),
-        legend.justification = c("right", "top"),
+        legend.justification = c("left", "top"),
         legend.key = element_rect(fill = NA),
         legend.background = element_rect(fill=NA,
         size=0.2,
@@ -527,22 +545,22 @@ crim_inv_spline_recid_all =
   
   geom_point(aes(x=crim_inv, raw_score__age_spline), # age spline outliers
              color="green", 
-             data=features %>% filter(filt1,filt5,!filt8)) + 
+             data=features %>% filter(filt1, filt3, filt5,!filt8)) + 
   geom_point(aes(x=crim_inv, raw_score__age_spline), # crim inv poly outliers
              color="red", alpha=.3, 
-             data=features %>% filter(filt1,filt5,filt8, !filt9)) + 
+             data=features %>% filter(filt1, filt3, filt5,filt8, !filt9)) + 
   geom_point(aes(x=crim_inv, raw_score__age_spline), # not outliers
              color="#619CFF", alpha=.3, 
-             data=features %>% filter(filt1,filt5,filt8, filt9)) + 
+             data=features %>% filter(filt1, filt3, filt5,filt8, filt9)) + 
 
   geom_line(aes(x=xx_crim_inv, y = predict(mdl_crim_inv_spline, newdata=data.frame(crim_inv=xx_crim_inv))),
                 color="#F8766D", size = 1) +
   theme_bw()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
-  xlab("\n Sum of Criminal Involvement Subscale Components") +
+  xlab("Sum of Criminal Involvement\n Subscale Components") +
   ylab("General score - f_age \n") +
-  theme(text = element_text(size=9),
-        axis.text=element_text(size=7),
+  theme(text = element_text(size=12),
+        axis.text=element_text(size=12),
         legend.position="top") 
 
 crim_inv_spline_recid_all
