@@ -282,7 +282,7 @@ ggsave("Figures/lb_inds_freq_recid.pdf",plot = lb_inds_freq_recid, width = 6, he
 
 ```
 
-### Age at first offense analysis
+### Age at first arrest analysis
 ```{r}
 # crim hist = 0  
 features_scales0 = features %>% 

@@ -291,12 +291,12 @@ ggsave("Figures/age_LB_alldata_violent.pdf",plot = age_spline_viol_all, width = 
 
 # Apply filters:
 features_vio_hist = features %>%
-  filter(filt1,filt3) %>% # Careful, filter 6 applied later since we need these points for plot
+  filter(filt1,filt3) %>% # filter 8 applied later since we need these points for plot
   select(vio_hist, raw_score__age_spline,filt8)
 
 # Compute lower bound
 lb_vio_hist = features_vio_hist %>%
-  filter(filt8) %>% # Now apply filter 6
+  filter(filt8) %>% # Now apply filter 8
   select(-filt8) %>%
   group_by(vio_hist)%>%
   top_n(n=-1,wt=raw_score__age_spline)%>%
@@ -371,6 +371,8 @@ features %>%
 ```{r}
 ggsave("Figures/hist_noncomp_LB_violent.pdf",width = 5, height = 3, units = "in")
 ```
+
+
 
 # Predictions of (raw - age polynomial) using several ML methods
 
