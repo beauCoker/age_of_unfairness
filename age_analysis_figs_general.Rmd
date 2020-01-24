@@ -1,8 +1,10 @@
 ---
 title: "Age Analysis of General Score"
 author: "Caroline Wang"
-output: html_notebook
 date: "April 18, 2019"
+output:
+  html_document: default
+  html_notebook: default
 ---
 purpose: checking data assumptions and exploratory analysis with the general score
 
@@ -17,6 +19,7 @@ library(segmented)
 source('functions.r')
 
 load("Table_construction.Rdata") 
+set.seed(12)
 ```
 
 
@@ -32,7 +35,7 @@ features = features %>%
   ) %>%
   inner_join(features_on, by = c("person_id","screening_date")) %>%
   inner_join(outcomes, by = c("person_id","screening_date")) %>%
-    select(-c(offenses_within_30.x,offenses_within_30.y)) %>%
+    # select(-c(offenses_within_30.x,offenses_within_30.y)) %>%
 
   # Create as many features as possible:
   mutate(
@@ -49,7 +52,8 @@ features = features %>%
     race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
     
     # Subscales:
-    crim_inv = p_charge+
+    crim_inv = p_arrest+
+               # p_charge+
                p_jail30+
                p_prison+
                p_probation,
@@ -162,10 +166,10 @@ ggsave("Figures/age_analysis_figs_general/dat_assumptions_count_general.pdf",plo
 
 
 ```{r}
-features_age_poly2 = features %>% 
+features_age_spline = features %>% 
     filter(filt1, filt5, filt6, filt7)
 
-lb_filt = features_age_poly2 %>%
+lb_filt = features_age_spline %>%
   group_by(p_current_age) %>%
     arrange(raw_score)%>%
     top_n(n=-1, wt = raw_score)
@@ -210,7 +214,7 @@ fireplot_lb_general
 #same plot as above but with everybody in features
 fireplot_all_general = ggplot()+
   geom_point(aes(x=p_current_age, y = raw_score, colour = p_current_age == p_age_first_offense ), 
-             alpha=.2, data=features_age_poly2 %>% 
+             alpha=.2, data=features_age_spline %>% 
                             na.omit() %>%
                             mutate(p_current_age = ifelse(p_current_age == p_age_first_offense, 
                                                           p_current_age, 
@@ -230,7 +234,7 @@ fireplot_all_general
 #plot of score vs age at first arrest
 age_first_offense_general = ggplot()+
   geom_point(aes(x=p_age_first_offense, raw_score), color="#619CFF",alpha=.3, 
-             data=features_age_poly2) +
+             data=features_age_spline) +
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at First Offense") +
@@ -243,11 +247,11 @@ age_first_offense_general
 #plot of score vs current age and age at first arrest
 reverse_fireplot_all_general = ggplot()+
   geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.2, 
-             data=features_age_poly2 %>% 
+             data=features_age_spline %>% 
                   na.omit() %>%
                   mutate(p_current_age = p_current_age+0.5 )) +
   geom_point(aes(x=p_age_first_offense, raw_score), color="red",alpha=.04, 
-             data=features_age_poly2) +
+             data=features_age_spline) +
   scale_colour_manual(name='Legend', values = setNames(c('red','#619CFF'),c("Age at first offense", "Current age"))) +
   theme_bw()+
   xlim(xmin,xmax)+
@@ -285,7 +289,7 @@ ggsave("Figures/age_analysis_figs_general/lb_inds_freq_general.pdf",plot = lb_in
 ```{r}
 # crim hist = 0  
 features_scales0 = features %>% 
-    filter(filt1, filt5, filt6, filt8)
+    filter(filt1, filt3, filt5, filt6, filt8)
 
 age_first_offense_general_scales0 <- ggplot()+
   geom_point(aes(x=p_age_first_offense, y= raw_score__age_spline), color = "#619CFF",alpha=.3, 
@@ -293,17 +297,17 @@ age_first_offense_general_scales0 <- ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at First Arrest") +
-  ylab("General score - age spline") +
+  ylab(expression(General~score~-~f[age]))  +
   ggtitle("Criminal Involvement = 0") + 
-  theme(text = element_text(size=18),
-        axis.text=element_text(size=14),
+  theme(text = element_text(size=9),
+        axis.text=element_text(size=12),
         legend.position="none")
 
 age_first_offense_general_scales0
 
 # crim hist = 1 and age != age at first offense 
 features_scales1 <- features %>% 
-    filter(filt1, filt5,filt8, 
+    filter(filt1, filt3, filt5,filt8, 
            crim_inv == 1, 
            p_age_first_offense != p_current_age)
 
@@ -316,10 +320,10 @@ age_first_offense_general_scales1 <- ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at First Arrest") +
-  ylab("General score - age spline") +
+  ylab(expression(General~score~-~f[age]))  +
   ggtitle("Criminal Involvement = 1, \nCurrent Age != Age at First Arrest") + 
-  theme(text = element_text(size=18),
-        axis.text=element_text(size=14),
+  theme(text = element_text(size=9),
+        axis.text=element_text(size=12),
         legend.position="none")
 
 age_first_offense_general_scales1
@@ -329,9 +333,9 @@ age_first_offense_general_scales1
 
 
 ```{r}
-ggsave("Figures/age_analysis_figs_general/age_first_offense_general_scales0.pdf",plot = age_first_offense_general_scales0, width = 6.5, height = 4, units = "in")
+ggsave("Figures/age_analysis_figs_general/age_first_offense_general_scales0.pdf",plot = age_first_offense_general_scales0, width = 3.5, height = 2.5, units = "in")
 
-ggsave("Figures/age_analysis_figs_general/age_first_offense_general_scales1.pdf",plot = age_first_offense_general_scales1, width = 6.5, height = 4, units = "in")
+ggsave("Figures/age_analysis_figs_general/age_first_offense_general_scales1.pdf",plot = age_first_offense_general_scales1, width = 3.5, height = 2.5, units = "in")
 
 ```
 

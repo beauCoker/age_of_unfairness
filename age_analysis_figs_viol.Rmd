@@ -18,7 +18,10 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction.Rdata") 
+# load("Table_construction.Rdata") 
+load("Table_construction_arrests_hist_violence.Rdata") 
+
+set.seed(12)
 ```
 
 ```{r}
@@ -178,11 +181,11 @@ ggsave("Figures/age_analysis_figs_viol/dat_assumptions_count_viol.pdf",plot = da
 ```{r}
 #Filter out outliers under the age polynomial, individuals with 
 #noncomp history/violence history != 0
-features_age_poly2 = features %>% 
+features_age_spline = features %>% 
     filter(filt1, filt5, filt6, filt7, filt8) 
     # filter(p_age_first_offense == p_current_age)
 
-lb_filt = features_age_poly2 %>%
+lb_filt = features_age_spline %>%
   group_by(p_current_age) %>%
     arrange(raw_score)%>%
     top_n(n=-1, wt = raw_score)
@@ -228,7 +231,7 @@ fireplot_lb_viol
 #same plot as above but with everybody in features
 fireplot_all_viol = ggplot()+
   geom_point(aes(x=p_current_age, y = raw_score, colour = p_current_age == p_age_first_offense ), 
-             alpha=.2, data=features_age_poly2 %>% 
+             alpha=.2, data=features_age_spline %>% 
                             na.omit() %>%
                             mutate(p_current_age = ifelse(p_current_age == p_age_first_offense, 
                                                           p_current_age, 
@@ -248,7 +251,7 @@ fireplot_all_viol
 #plot of score vs age at first arrest
 age_first_offense_viol = ggplot()+
   geom_point(aes(x=p_age_first_offense, raw_score), color="#619CFF",alpha=.3, 
-             data=features_age_poly2) +
+             data=features_age_spline) +
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at First Offense") +
@@ -261,11 +264,11 @@ age_first_offense_viol
 #plot of score vs current age and age at first arrest
 reverse_fireplot_all_viol = ggplot()+
   geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.2, 
-             data=features_age_poly2 %>% 
+             data=features_age_spline %>% 
                   na.omit() %>%
                   mutate(p_current_age = p_current_age+0.5 )) +
   geom_point(aes(x=p_age_first_offense, raw_score), color="red",alpha=.04, 
-             data=features_age_poly2) +
+             data=features_age_spline) +
   scale_colour_manual(name='Legend', values = setNames(c('red','#619CFF'),c("Age at first offense", "Current age"))) +
   theme_bw()+
   xlim(xmin,xmax)+
@@ -303,7 +306,7 @@ ggsave("Figures/age_analysis_figs_viol/lb_inds_freq_viol.pdf",plot = lb_inds_fre
 ```{r}
 #History of noncomp = 0, violence history = 0 
 features_scales0 <- features %>% 
-    filter(filt1, filt5, filt6, filt7,filt9)
+    filter(filt1, filt3, filt5, filt6, filt7,filt9)
 
 age_first_offense_viol_scales0 <- ggplot()+
   geom_point(aes(x=p_age_first_offense, 
@@ -314,10 +317,10 @@ age_first_offense_viol_scales0 <- ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at First Arrest") +
-  ylab("Violence score - age spline") +
+  ylab(expression(Violence~score~-~f[age]))  +
   ggtitle("Violence History & Noncomp. History = 0") + 
-  theme(text = element_text(size=18),
-        axis.text=element_text(size=14),
+  theme(text = element_text(size=9),
+        axis.text=element_text(size=12),
         legend.position="none")
 
 age_first_offense_viol_scales0
@@ -325,7 +328,7 @@ age_first_offense_viol_scales0
 
 #History of noncomp = 1, violence history = 1, age at first offense != current age 
 features_scales1 <- features %>% 
-    filter(filt1, filt5,filt9, 
+    filter(filt1, filt3, filt5,filt9, 
            vio_hist == 1, 
            history_noncomp == 1, 
            p_age_first_offense != p_current_age)
@@ -339,10 +342,10 @@ age_first_offense_viol_scales1 <- ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at First Arrest") +
-  ylab("Violence score - age spline") +
+  ylab(expression(Violence~score~-~f[age]))  +
   ggtitle("Violence History & Noncomp. History = 1, \nCurrent Age != Age at First Arrest") + 
-  theme(text = element_text(size=18),
-        axis.text=element_text(size=14),
+  theme(text = element_text(size=9),
+        axis.text=element_text(size=12),
         legend.position="none")
 
 age_first_offense_viol_scales1
@@ -354,9 +357,9 @@ age_first_offense_viol_scales1
 
 
 ```{r}
-ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales0.pdf", plot = age_first_offense_viol_scales0, width = 6.5, height = 4, units = "in")
+ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales0.pdf", plot = age_first_offense_viol_scales0, width = 3.5, height = 2.5, units = "in")
 
-ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales1.pdf", plot = age_first_offense_viol_scales1, width = 6.5, height = 4, units = "in")
+ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales1.pdf", plot = age_first_offense_viol_scales1, width = 3.5, height = 2.5, units = "in")
 
 ```
 

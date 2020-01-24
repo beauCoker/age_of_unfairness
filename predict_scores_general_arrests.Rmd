@@ -5,10 +5,10 @@ date: "6/27/2018"
 output: html_document
 ---
 
-This notebook contains the additional COMPAS general score analysis which can be found in the rejoinder. 
+This notebook contains the additional COMPAS general score analysis (with arrests instead of charges) that can be found in the rejoinder. 
 
 ```{r}
-library(lubridate)s
+library(lubridate)
 library(xgboost)
 library(randomForest)
 library(tidyverse)
@@ -273,7 +273,7 @@ prior_arrests_LB_general = features %>%
           theme_bw()+
           xlab("Number of prior arrests") +
           ylab(expression(General~score~-~f[age]))  +
-          theme(text = element_text(size=12),
+          theme(text = element_text(size=9),
                 axis.text=element_text(size=12),
                 legend.position="top") +
           scale_color_manual(name=element_blank(),
@@ -301,9 +301,9 @@ features %>%
     geom_point(aes(x=crim_inv,y=raw_score__age_spline,color=filt8),alpha=.5) +
     xlim(c(0,45))+
     theme_bw()+
-    xlab("Sum of Criminal Involvement \nComponents") +
+    xlab("Sum of Criminal Involvement Components") +
     ylab(expression(General~score~-~f[age]))  +
-    theme(text = element_text(size=12),
+    theme(text = element_text(size=9),
           axis.text=element_text(size=12),
           legend.position="top") +
     scale_color_manual(name=element_blank(),
@@ -436,7 +436,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
   xlab("Criminal Involvement Subscale Sum") +
-  ylab("General score - f_age") +
+  ylab(expression(General~score~-~f[age]))  +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -448,7 +448,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
   xlab("Criminal Involvement Subscale Sum") +
-  ylab("General score - f_age") +
+  ylab(expression(General~score~-~f[age]))  +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -460,7 +460,7 @@ ggplot()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
   ylim(-0.5, 4) + 
   xlab("Criminal Involvement Subscale Sum -- Unfiltered ") +
-  ylab("General score - f_age") +
+  ylab(expression(General~score~-~f[age]))  +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -472,7 +472,7 @@ ggplot()+
   xlim(xmin_crim_inv,xmax_crim_inv) +
   ylim(-0.5, 4) + 
   xlab("Criminal Involvement Subscale Sum -- Filtered ") +
-  ylab("General score - f_age") +
+  ylab(expression(General~score~-~f[age]))  +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -511,8 +511,13 @@ rm(lb_age_spline_outliers, lb_crim_inv_poly_outliers)
 
 ```
 
+```{r}
+set.seed(151)
+```
+
 Generating linear splines to fit the lower bound of the COMPAS age remainder 
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
+
 ```{r}
 mdl_crim_inv_spline <- segmented(lm(raw_score__age_spline ~ crim_inv, data = lb_filt_crim_inv), 
                             seg.Z = ~crim_inv, psi = list(crim_inv = c(9)),
@@ -551,10 +556,10 @@ crim_inv_spline_general =
   theme_bw()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
   xlab("Sum of Criminal Involvement \n Subscale Components") +
-  ylab("General Score - f_age \n") +
+  ylab(expression(General~score~-~f[age]))  +
   theme(text = element_text(size=9),
-        axis.text=element_text(size=7),
-        legend.position = c(0,1),
+        axis.text=element_text(size=12),
+        legend.position = c(-.03,1.03),
         legend.title = element_blank(),
         legend.justification = c("left", "top"),
         legend.key = element_rect(fill = NA),
@@ -584,10 +589,9 @@ crim_inv_spline_general_all =
   theme_bw()+
   xlim(xmin_crim_inv,xmax_crim_inv)+
   xlab("Sum of Criminal Involvement\n Subscale Components") +
-  ylab("General score - f_age \n") +
-  theme(text = element_text(size=12),
-        axis.text=element_text(size=12),
-        legend.position="top") 
+  ylab(expression(General~score~-~f[age]))  +
+  theme(text = element_text(size=9),
+        axis.text=element_text(size=12)) 
 
 crim_inv_spline_general_all
 
