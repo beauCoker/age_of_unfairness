@@ -102,6 +102,7 @@ lb_age = features_age_poly %>%
   top_n(n=-1, wt=raw_score) # Fit lower bound on smallest value
 
 
+set.seed(284)
 mdl_age = lm(raw_score ~ 
                I(p_current_age^4) + 
                I(p_current_age^3) + 
@@ -202,6 +203,7 @@ lb = lb_filt %>%
 
 Generating new age spline. 
 ```{r}
+set.seed(728)
 mdl_age_spline <- segmented(lm(raw_score ~ p_current_age, data = lb_filt), 
                             seg.Z = ~p_current_age, psi = list(p_current_age = c(22,36,44)),
   control = seg.control(display = FALSE)
@@ -456,6 +458,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(888)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -515,6 +518,7 @@ res_rmse[res_rmse$Group==0,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(174)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==0,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -562,6 +566,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(989)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -621,6 +626,7 @@ res_rmse[res_rmse$Group==1,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(4777)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==1,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -676,6 +682,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(783)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -737,6 +744,7 @@ res_rmse[res_rmse$Group==2,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(1048)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==2,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -787,6 +795,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(58)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -852,6 +861,7 @@ res_rmse[res_rmse$Group==3,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(273)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==3,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -905,6 +915,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(173)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -1187,6 +1198,7 @@ print(paste("Number of observations for logistic regression:",nrow(propub)))
 ```
 
 ```{r}
+set.seed(1568)
 mdl_glm = glm(compas_high ~
                 female +
                 age_high +
