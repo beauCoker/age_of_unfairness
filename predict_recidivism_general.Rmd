@@ -404,7 +404,7 @@ ggplot() +
 ```
 
 ```{r}
-ggsave("Figures/xgboostRecid_decile_general.pdf",width = 4, height = 4, units = "in")
+ggsave("Figures/predict_recidivism_general/xgboostRecid_decile_general.pdf",width = 4, height = 4, units = "in")
 ```
 
 

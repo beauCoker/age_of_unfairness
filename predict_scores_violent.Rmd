@@ -14,8 +14,16 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-load("Table_construction_arrests_hist_violence.Rdata") # use arrests version of Hist. Violence subscale
-# load("Table_construction.Rdata") 
+arrests = FALSE
+
+if(arrests == TRUE){
+    load("Table_construction_arrests_hist_violence.Rdata") # use arrests version of Hist. Violence subscale
+    fig_save_dir = "predict_scores_violent_arrests/"
+  }else{
+    load("Table_construction.Rdata") # use charges version of Hist Violence subscale
+    fig_save_dir = "predict_scores_violent_charges/"
+  }
+
 set.seed(12)
 
 ```
@@ -259,7 +267,7 @@ age_spline_viol
 ```
 
 ```{r}
-ggsave("Figures/age_LB_violent.pdf",plot = age_spline_viol, width = 3.5, height = 2.5, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "age_LB_violent.pdf"),plot = age_spline_viol, width = 3.5, height = 2.5, units = "in")
 ```
 
 
@@ -280,7 +288,7 @@ age_spline_viol_all = ggplot()+
 ```
 
 ```{r}
-ggsave("Figures/age_LB_alldata_violent.pdf",plot = age_spline_viol_all, width = 3.5, height = 2.5, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "age_LB_alldata_violent.pdf"),plot = age_spline_viol_all, width = 3.5, height = 2.5, units = "in")
 ```
 
 
@@ -343,7 +351,7 @@ rm(lb_vio_hist_plot)
 
 
 ```{r}
-ggsave("Figures/vio_hist_LB_violent.pdf",width = 5, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "vio_hist_LB_violent.pdf"),width = 5, height = 3, units = "in")
 ```
 
 ## Examine history of noncompliance lower bound (none found)
@@ -369,7 +377,7 @@ features %>%
 
 
 ```{r}
-ggsave("Figures/hist_noncomp_LB_violent.pdf",width = 5, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir,"hist_noncomp_LB_violent.pdf"),width = 5, height = 3, units = "in")
 ```
 
 
@@ -819,7 +827,7 @@ data.frame(xgboost = pred, compas=actual) %>%
 
 
 ```{r}
-ggsave("Figures/raw-fage_xgboost_gp3_violent.pdf",width = 3, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "raw-fage_xgboost_gp3_violent.pdf"),width = 3, height = 3, units = "in")
 ```
 
 ```{r}
@@ -936,7 +944,7 @@ data.frame(xgboost = pred, compas=actual) %>%
 ```
 
 ```{r}
-ggsave("Figures/raw-fage_xgboost_gp4_violent.pdf",width = 3, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "raw-fage_xgboost_gp4_violent.pdf"),width = 3, height = 3, units = "in")
 ```
 
 ```{r}
@@ -983,7 +991,7 @@ ggplot() +
 
 
 ```{r}
-ggsave("Figures/xgboost_rawScore_annotate_violent.pdf",width = 3, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir,"xgboost_rawScore_annotate_violent.pdf"),width = 3, height = 3, units = "in")
 ```
 
 ### Model 3: random forest
@@ -1091,7 +1099,7 @@ data.frame(xgboost = pred, compas=actual) %>%
 
 
 ```{r}
-ggsave("Figures/raw_xgboost_gp3_violent.pdf",width = 3, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "raw_xgboost_gp3_violent.pdf"),width = 3, height = 3, units = "in")
 ```
 
 
@@ -1160,7 +1168,7 @@ data.frame(xgboost = pred, compas=actual) %>%
 
 
 ```{r}
-ggsave("Figures/raw-fage-gviohist_xgboost_gp3_violent.pdf",width = 3, height = 3, units = "in")
+ggsave(paste0("Figures/", fig_save_dir, "raw-fage-gviohist_xgboost_gp3_violent.pdf"),width = 3, height = 3, units = "in")
 ```
 
 # Replicating ProPublica logistic regression

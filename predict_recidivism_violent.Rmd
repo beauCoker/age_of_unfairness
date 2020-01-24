@@ -12,6 +12,7 @@ library(tidyverse)
 library(lubridate)
 
 source('functions.r')
+set.seed(12)
 ```
 
 ```{r}
@@ -433,7 +434,7 @@ ggplot() +
 ```
 
 ```{r}
-ggsave("Figures/xgboostRecid_decile_violent.pdf",width = 6, height = 3.5, units = "in")
+ggsave("Figures/predict_recidivism_violent/xgboostRecid_decile_violent.pdf",width = 6, height = 3.5, units = "in")
 ```
 
 ### Model 3: random forest
@@ -755,11 +756,6 @@ res_error[res_error$Group==5,]$svm = mean(mdl_svm$fitted != train$recid_use) # A
 ```{r}
 rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
 ```
-
-
-
-
-
 
 
 

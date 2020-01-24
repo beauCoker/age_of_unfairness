@@ -135,7 +135,7 @@ theme(text = element_text(size=12),
 ```
 
 ```{r}
-ggsave("Figures/quantiles_violent.pdf",width = 5, height = 3, units = "in")
+ggsave("Figures/quantile_regression/quantiles_violent.pdf",width = 5, height = 3, units = "in")
 ```
 
 
@@ -248,5 +248,5 @@ theme(text = element_text(size=12),
 ```
 
 ```{r}
-ggsave("Figures/quantiles_general.pdf",width = 5, height = 3, units = "in")
+ggsave("Figures/quantile_regression/quantiles_general.pdf",width = 5, height = 3, units = "in")
 ```
