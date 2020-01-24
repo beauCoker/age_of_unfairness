@@ -18,8 +18,13 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-# load("Table_construction.Rdata") 
-load("Table_construction_arrests_hist_violence.Rdata") 
+arrests <- FALSE
+
+if(arrests){
+  load("Table_construction_arrests_hist_violence.Rdata") 
+}else{
+  load("Table_construction.Rdata")
+}
 
 set.seed(12)
 ```
@@ -94,7 +99,7 @@ lb_age = features_age_poly %>%
   arrange(raw_score) %>%
   top_n(n=-1, wt=raw_score) # Fit lower bound on smallest value
 
-
+set.seed(20)
 mdl_age = lm(raw_score ~ 
                I(p_current_age^4) + 
                I(p_current_age^3) + 
@@ -195,6 +200,7 @@ lb_filt = features_age_spline %>%
 
 Generating new age spline. 
 ```{r}
+set.seed(30)
 mdl_age_spline <- segmented(lm(raw_score ~ p_current_age, data = lb_filt), 
                             seg.Z = ~p_current_age, psi = list(p_current_age = c(22,36,44)),
   control = seg.control(display = FALSE)
@@ -208,6 +214,12 @@ features = features %>%
     filt9 = raw_score >= age_spline - 0.05
   )
 
+```
+
+```{r}
+intercept(mdl_age_spline)
+slope(mdl_age_spline)
+summary.segmented(mdl_age_spline)$psi
 ```
 
 
@@ -357,9 +369,15 @@ age_first_offense_viol_scales1
 
 
 ```{r}
-ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales0.pdf", plot = age_first_offense_viol_scales0, width = 3.5, height = 2.5, units = "in")
 
-ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales1.pdf", plot = age_first_offense_viol_scales1, width = 3.5, height = 2.5, units = "in")
+if(arrests){
+  ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales0_arrests.pdf", plot = age_first_offense_viol_scales0, width = 3.5, height = 2.5, units = "in")
+  ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales1_arrests.pdf", plot = age_first_offense_viol_scales1, width = 3.5, height = 2.5, units = "in")
+}else{
+  ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales0_charges.pdf", plot = age_first_offense_viol_scales0, width = 3.5, height = 2.5, units = "in")
+  ggsave("Figures/age_analysis_figs_viol/age_first_offense_viol_scales1_charges.pdf", plot = age_first_offense_viol_scales1, width = 3.5, height = 2.5, units = "in")
+  }
+
 
 ```
 

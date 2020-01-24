@@ -14,7 +14,7 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-arrests = FALSE
+arrests = TRUE
 
 if(arrests == TRUE){
     load("Table_construction_arrests_hist_violence.Rdata") # use arrests version of Hist. Violence subscale

@@ -80,6 +80,7 @@ lb_age = features_age_poly %>%
   arrange(raw_score) %>%
   top_n(n=-1, wt=raw_score) # Fit lower bound on smallest value
 
+set.seed(20)
 mdl_age = lm(raw_score ~ 
                I(p_current_age^2) + 
                p_current_age, 
@@ -181,6 +182,8 @@ lb_filt = features_age_spline %>%
 Generating linear splines to fit the lower 
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
 ```{r}
+
+set.seed(30)
 mdl_age_spline <- segmented(lm(raw_score ~ p_current_age, data = lb_filt), 
                             seg.Z = ~p_current_age, psi = list(p_current_age = c(39,58)),
   control = seg.control(display = FALSE)
@@ -192,6 +195,13 @@ features = features %>%
     raw_score__age_spline = raw_score - age_spline,
     filt8 = raw_score >= age_spline - 0.05
   )
+```
+
+```{r}
+intercept(mdl_age_spline)
+slope(mdl_age_spline)
+summary.segmented(mdl_age_spline)$psi
+
 ```
 
 

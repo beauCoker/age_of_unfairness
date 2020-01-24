@@ -77,6 +77,7 @@ lb_age = features_age_poly %>%
   arrange(raw_score) %>%
   top_n(n=-1, wt=raw_score) # Fit lower bound on smallest value for each age
 
+set.seed(20)
 mdl_age = lm(raw_score ~ 
                I(p_current_age^2) + 
                p_current_age, 
@@ -174,6 +175,7 @@ lb = lb_filt %>%
 Generating linear splines to fit the lower bound
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
 ```{r}
+set.seed(30)
 mdl_age_spline <- segmented(lm(raw_score ~ p_current_age, data = lb_filt), 
                             seg.Z = ~p_current_age, psi = list(p_current_age = c(39,58)),
   control = seg.control(display = FALSE)
@@ -387,6 +389,7 @@ lb_crim_inv = features_crim_inv_poly %>%
   top_n(n=-4, wt=raw_score__age_spline) # Fit lower bound on smallest value for each crim inv component
 
 # predict the compas age remainder
+set.seed(45)
 mdl_crim_inv = lm(raw_score__age_spline ~ 
                  I(crim_inv^3) + 
                  I(crim_inv^2) + 
@@ -511,14 +514,11 @@ rm(lb_age_spline_outliers, lb_crim_inv_poly_outliers)
 
 ```
 
-```{r}
-set.seed(151)
-```
-
 Generating linear splines to fit the lower bound of the COMPAS age remainder 
 Plottng individuals on new bottom edge produced by fitting to lb_filt individuals. 
 
 ```{r}
+set.seed(151)
 mdl_crim_inv_spline <- segmented(lm(raw_score__age_spline ~ crim_inv, data = lb_filt_crim_inv), 
                             seg.Z = ~crim_inv, psi = list(crim_inv = c(9)),
   control = seg.control(display = FALSE)
@@ -671,6 +671,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(384)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -730,6 +731,7 @@ res_rmse[res_rmse$Group==0,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(148)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==0,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -768,6 +770,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(491)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -827,6 +830,7 @@ res_rmse[res_rmse$Group==1,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(584)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==1,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -870,6 +874,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(203)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -941,6 +946,7 @@ res_rmse[res_rmse$Group==2,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(2059)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==2,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -1048,6 +1054,7 @@ res_rmse[res_rmse$Group==3,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(920)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==3,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -1096,6 +1103,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(1049)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -1201,6 +1209,7 @@ res_rmse[res_rmse$Group==4,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(2094)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==4,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -1249,6 +1258,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(109)
 mdl_lm = lm(raw_score__age_spline ~ ., data=train)
 summary(mdl_lm)
 
@@ -1308,6 +1318,7 @@ res_rmse[res_rmse$Group==5,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(109)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==5,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP
@@ -1361,6 +1372,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(189)
 mdl_lm = lm(raw_score__age_spline__crim_inv_spline ~ ., data=train)
 summary(mdl_lm)
 res_rmse[res_rmse$Group==6,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
@@ -1414,6 +1426,7 @@ res_rmse[res_rmse$Group==6,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(825)
 mdl_svm = fit_svm(raw_score__age_spline__crim_inv_spline ~ ., train, param_svm)
 res_rmse[res_rmse$Group==6,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
 ```
@@ -1448,6 +1461,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(4860)
 mdl_lm = lm(raw_score__age_spline__crim_inv_spline ~ ., data=train)
 summary(mdl_lm)
 res_rmse[res_rmse$Group==7,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
@@ -1501,6 +1515,7 @@ res_rmse[res_rmse$Group==7,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(344)
 mdl_svm = fit_svm(raw_score__age_spline__crim_inv_spline ~ ., train, param_svm)
 res_rmse[res_rmse$Group==7,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
 ```
@@ -1535,6 +1550,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(205)
 mdl_lm = lm(raw_score__age_spline__crim_inv_spline ~ ., data=train)
 summary(mdl_lm)
 res_rmse[res_rmse$Group==8,]$lm = rmse(predict(mdl_lm, newdata=train), train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
@@ -1588,6 +1604,7 @@ res_rmse[res_rmse$Group==8,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(158)
 mdl_svm = fit_svm(raw_score__age_spline__crim_inv_spline ~ ., train, param_svm)
 res_rmse[res_rmse$Group==8,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
 ```
@@ -1747,6 +1764,7 @@ print(paste("Number of observations for logistic regression:",nrow(propub)))
 ```
 
 ```{r}
+set.seed(998)
 mdl_glm = glm(compas_high ~
                 female +
                 age_high +
