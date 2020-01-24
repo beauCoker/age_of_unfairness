@@ -1609,7 +1609,7 @@ res_rmse[res_rmse$Group==8,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
-mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
+mdl_svm = fit_svm(raw_score__age_spline__crim_inv_spline ~ ., train, param_svm)
 res_rmse[res_rmse$Group==8,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline__crim_inv_spline) # ADJUST GROUP
 ```
 
@@ -1619,6 +1619,11 @@ rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
 ```
 
 
+## Comparison
+
+```{r}
+knitr::kable(res_rmse)
+```
 
 
 # Predictions using xgboost only
