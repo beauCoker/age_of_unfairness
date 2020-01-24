@@ -323,7 +323,7 @@ features %>%
     geom_point(aes(x=crim_inv,y=raw_score__age_spline,color=filt8),alpha=.5) +
     xlim(c(0,45))+
     theme_bw()+
-    xlab("Sum of Criminal Involvement Components") +
+    xlab("Sum of Criminal Involvement \nComponents") +
     ylab(expression(General~score~-~f[age]))  +
     theme(text = element_text(size=12),
           axis.text=element_text(size=12),
