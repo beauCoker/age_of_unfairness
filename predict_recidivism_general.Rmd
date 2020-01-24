@@ -12,6 +12,7 @@ library(tidyverse)
 library(lubridate)
 
 source('functions.r')
+set.seed(1)
 ```
 
 ```{r}
@@ -95,6 +96,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(2)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==1,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -149,6 +151,7 @@ res_error[res_error$Group==1,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
+set.seed(4)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==1,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -198,6 +201,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(5)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==2,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -253,6 +257,7 @@ res_error[res_error$Group==2,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
+set.seed(6)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==2,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -294,6 +299,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(7)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==3,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -366,6 +372,7 @@ test_xgb = xgb.DMatrix(
 
 
 ```{r}
+set.seed(8)
 highlight = data.frame(
   person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
   screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
@@ -424,6 +431,7 @@ res_error[res_error$Group==3,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
+set.seed(9)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==3,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -474,6 +482,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(10)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==4,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -528,6 +537,7 @@ res_error[res_error$Group==4,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
+set.seed(11)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==4,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -573,6 +583,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
+set.seed(12)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==5,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -645,6 +656,7 @@ test_xgb = xgb.DMatrix(
 
 
 ```{r}
+set.seed(13)
 highlight = data.frame(
   person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
   screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
@@ -699,6 +711,7 @@ res_error[res_error$Group==5,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
+set.seed(14)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==5,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
