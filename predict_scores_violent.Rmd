@@ -14,7 +14,7 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-arrests = TRUE
+arrests = FALSE
 
 if(arrests == TRUE){
     load("Table_construction_arrests_hist_violence.Rdata") # use arrests version of Hist. Violence subscale
@@ -168,11 +168,11 @@ ggplot()+
 ```{r}
 #Filter out outliers under the age polynomial, individuals with 
 #noncomp history/violence history != 0
-features_age_poly2 = features %>% 
+features_age_spline = features %>% 
     filter(filt1, filt5, filt6, filt7) 
     # filter(p_age_first_offense == p_current_age)
 
-lb_filt = features_age_poly2 %>%
+lb_filt = features_age_spline %>%
   group_by(p_current_age) %>%
     arrange(raw_score)%>%
     top_n(n=-1, wt = raw_score)
@@ -222,6 +222,8 @@ features = features %>%
 ```{r}
 intercept(mdl_age_spline)
 slope(mdl_age_spline)
+summary.segmented(mdl_age_spline)$psi
+
 ```
 
 
@@ -757,11 +759,6 @@ rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
 
 
 
-
-
-
-
-
 ## Group 3 models: predicting (raw - age polynomial) without using race but with age variables
 
 ```{r}
@@ -1021,6 +1018,7 @@ res_rmse[res_rmse$Group==4,]$rf = rmse(mdl_rf$predicted, train$raw_score__age_sp
 ### Model 4: SVM
 
 ```{r}
+set.seed(2384)
 mdl_svm = fit_svm(raw_score__age_spline ~ ., train, param_svm)
 
 res_rmse[res_rmse$Group==4,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spline) # ADJUST GROUP

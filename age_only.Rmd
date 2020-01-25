@@ -23,6 +23,7 @@ df_prob = features %>%
   filter(screening_date <= current_offense_date_limit) %>% # Filter 4
   select(p_current_age, recid)
 
+set.seed(328)
 mdl = glm(recid ~ p_current_age, data=df_prob)
 
 ggplot(data=df_prob, aes(x=p_current_age, y=recid)) + 

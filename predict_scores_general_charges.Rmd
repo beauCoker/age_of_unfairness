@@ -558,7 +558,7 @@ rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf, mdl_svm)
 
 
 
-## Group 2 models: predicting (raw score - age spline) without using age variables but with race
+## Group 2 models: predicting (raw score - age spline) without using current age  but with race
 
 ```{r}
 ### Create group 2 training data
@@ -671,9 +671,6 @@ res_rmse[res_rmse$Group==2,]$svm = rmse(mdl_svm$fitted, train$raw_score__age_spl
 ```{r}
 rm(train, train_xgb, mdl_lm, mdl_xgb, mdl_rf)
 ```
-
-
-
 
 
 

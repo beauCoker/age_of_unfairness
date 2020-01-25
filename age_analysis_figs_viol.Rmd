@@ -4,7 +4,6 @@ author: "Caroline Wang"
 date: "April 18, 2019"
 output:
   html_document: default
-  html_notebook: default
 purpose: checking data assumptions and exploratory analysis with the violence score
 ---
 
@@ -179,6 +178,72 @@ dat_assumptions_count
 
 ```{r}
 ggsave("Figures/age_analysis_figs_viol/dat_assumptions_count_viol.pdf",plot = dat_assumptions_count, width = 6, height = 4, units = "in")
+
+```
+
+
+## Check for possibility that nonlinear lower bound is caused by extreme values/frequency of each age . 
+```{r}
+# Sample LB
+m = 150
+
+lb_age_samp = features_age_poly %>%
+  group_by(p_current_age) %>%
+  nest(.key="ages") %>%
+  mutate(n = map(ages,nrow)) %>%
+  unnest(n) %>%
+  mutate(n_sample = map(n, ~min(.x,m))) %>%
+  unnest(n_sample) %>%
+  mutate(ages_sample = pmap(list(ages, n, n_sample), ~ ..1[sample(1:..2,..3),])) %>%
+  mutate(min_raw_score = map(ages_sample, ~min(.x$raw_score))) %>%
+  unnest(min_raw_score)
+
+# Regress
+set.seed(83483)
+mdl_age_samp = lm(min_raw_score ~ 
+                    I(p_current_age^4) + 
+                    I(p_current_age^3) + 
+                    I(p_current_age^2) + 
+                    p_current_age, 
+                  data=lb_age_samp)
+
+
+lb_age_samp_unnested = lb_age_samp %>% select(p_current_age, ages_sample) %>% unnest()
+
+age_samp = ggplot()+
+  geom_point(aes(x=p_current_age, raw_score), color="#619CFF",alpha=.3, data=features_age_poly) +
+  geom_point(aes(x=p_current_age, raw_score), color="black",alpha=1, data=lb_age_samp_unnested) +
+  geom_point(aes(x=p_current_age, min_raw_score), color="green",alpha=1, data=lb_age_samp) +
+  geom_line(aes(x=xx, predict(mdl_age_samp, newdata=data.frame(p_current_age=xx))),color="green") +
+  geom_line(aes(x=xx, predict(mdl_age, newdata=data.frame(p_current_age=xx))),color="#F8766D") +
+  theme_bw()+
+  xlim(xmin,xmax)+
+  xlab("Age at COMPAS screening date") +
+  ylab("Violence score") +
+  theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position="none")
+
+age_samp
+
+# plot number of individuals for each age 
+num_inds = ggplot(data=lb_age_samp, aes(x=p_current_age, y=n)) +
+  geom_point() +
+  xlab("Current age") +
+  ylab("Number of observations for \nthis age (violence score)") +
+  theme_bw() + 
+    theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position="none")
+
+
+num_inds
+```
+
+
+```{r}
+ggsave("Figures/age_analysis_figs_viol/age_samp_viol.pdf",plot = age_samp, width = 6, height = 4, units = "in")
+ggsave("Figures/age_analysis_figs_viol/num_inds_age_viol.pdf",plot = num_inds, width = 6, height = 4, units = "in")
 
 ```
 

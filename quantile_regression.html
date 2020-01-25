@@ -215,6 +215,7 @@ score_quan = map_dfc(quan_list, function(quan) {
 )
 
 # For each quantile, regress observed score quantiles on age
+set.seed(3274)
 quan_fits = map(score_quan,
          ~ lm(y ~ I(x^4) + I(x^3) + I(x^2) + x,
               data=data.frame(y = .x , x=scores$p_current_age))
@@ -313,6 +314,7 @@ score_quan = map_dfc(quan_list, function(quan) {
 )
 
 # For each quantile, regress observed score quantiles on age
+set.seed(237)
 quan_fits = map(score_quan,
          ~ lm(y ~ I(x^2) + x, 
               data=data.frame(y = .x , x=scores$p_current_age))
