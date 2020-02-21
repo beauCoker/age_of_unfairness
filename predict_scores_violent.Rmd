@@ -14,7 +14,7 @@ library(magrittr)
 library(segmented)
 source('functions.r')
 
-arrests = FALSE
+arrests = TRUE
 
 if(arrests == TRUE){
     load("Table_construction_arrests_hist_violence.Rdata") # use arrests version of Hist. Violence subscale
@@ -255,7 +255,7 @@ age_spline_viol =
   xlim(xmin,xmax)+
   labs(
     x = "\n Age at COMPAS screening date", 
-    y = "Violence Score \n"
+    y = "Violent Score \n"
   ) +
   theme(text = element_text(size=9),
         axis.text=element_text(size=7),
@@ -285,7 +285,7 @@ age_spline_viol_all = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("Violence score") +
+  ylab("Violent score") +
   theme(text = element_text(size=12),
         axis.text=element_text(size=12),
         legend.position="top") 

@@ -604,6 +604,35 @@ ggsave("Figures/predict_scores_general_arrests/crim_inv_spline_alldata_general.p
 ```
 
 
+## Check if any further dependence on age at first arrest
+```{r}
+age_first_offense_fage_gcriminv = ggplot()+
+  
+  geom_point(aes(x=p_age_first_offense, raw_score__age_spline__crim_inv_spline), # age spline outliers
+             color="green", 
+             data=features %>% filter(filt1, filt3, filt5,!filt8)) + 
+  geom_point(aes(x=p_age_first_offense, raw_score__age_spline__crim_inv_spline), # crim inv poly outliers
+             color="red", alpha=.3, 
+             data=features %>% filter(filt1, filt3, filt5,filt8, !filt9)) + 
+  geom_point(aes(x=p_age_first_offense, raw_score__age_spline__crim_inv_spline), # not outliers
+             color="#619CFF", alpha=.3, 
+             data=features %>% filter(filt1, filt3, filt5,filt8, filt9)) + 
+
+        theme_bw()+
+        xlim(xmin,xmax)+
+        xlab("Age at first arrest") +
+        ylab(expression(General~score~-~f[age]~-~g[crim-inv]))  +
+        theme(text = element_text(size=18),
+        axis.text=element_text(size=18),
+        legend.position="none")
+age_first_offense_fage_gcriminv
+```
+
+```{r}
+ggsave("Figures/predict_scores_general_arrests/age_first_offense_fage_gcriminv.pdf", plot = age_first_offense_fage_gcriminv, width = 6.5, height = 4, units = "in")
+```
+
+
 ## Predictions of (raw - age polynomial) using several ML methods
 
 There are a few groups of predictors we will use:

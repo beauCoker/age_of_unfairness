@@ -144,7 +144,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("Violence score") +
+  ylab("Violent score") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -155,7 +155,7 @@ ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("Violence score") +
+  ylab("Violent score") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -168,7 +168,7 @@ dat_assumptions_count =
   xlim(xmin,xmax)+
   ylim(0, 250) + 
   xlab("Age at COMPAS screening date") +
-  ylab("Count of Individuals \n Violence Score") +
+  ylab("Count of Individuals \n Violent Score") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -219,7 +219,7 @@ age_samp = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("Age at COMPAS screening date") +
-  ylab("Violence score") +
+  ylab("Violent score") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -230,7 +230,7 @@ age_samp
 num_inds = ggplot(data=lb_age_samp, aes(x=p_current_age, y=n)) +
   geom_point() +
   xlab("Current age") +
-  ylab("Number of observations for \nthis age (violence score)") +
+  ylab("Number of observations for \nthis age (violent score)") +
   theme_bw() + 
     theme(text = element_text(size=18),
         axis.text=element_text(size=18),
@@ -299,7 +299,7 @@ fireplot_lb_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at COMPAS screening date") +
-  ylab("Violence score \n") +
+  ylab("Violent score \n") +
   theme(text = element_text(size=16),
         axis.text=element_text(size=16), 
         legend.position ="top")
@@ -318,7 +318,7 @@ fireplot_all_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at COMPAS screening date") +
-  ylab("Violence score \n") +
+  ylab("Violent score \n") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18), 
         legend.position ="top")
@@ -332,7 +332,7 @@ age_first_offense_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age at First Offense") +
-  ylab("Violence score \n") +
+  ylab("Violent score \n") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -350,7 +350,7 @@ reverse_fireplot_all_viol = ggplot()+
   theme_bw()+
   xlim(xmin,xmax)+
   xlab("\n Age") +
-  ylab("Violence score \n") +
+  ylab("Violent score \n") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")
@@ -362,7 +362,7 @@ lb_inds_freq_viol = ggplot()+
   theme_bw() +
   xlim(xmin,xmax) +
   xlab("\n Age at COMPAS screening date") +
-  ylab("Violence score\n ") +
+  ylab("Violent score\n ") +
   theme(text = element_text(size=18),
         axis.text=element_text(size=18),
         legend.position="none")

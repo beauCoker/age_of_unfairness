@@ -244,10 +244,10 @@ age_spline_general_all =
                 color="#F8766D", size = 1) +
   theme_bw()+
   xlim(xmin,xmax)+
-  xlab("\n Age at COMPAS screening date") +
-  ylab("General score \n") +
-  theme(text = element_text(size=9),
-        axis.text=element_text(size=7),
+  xlab("Age at COMPAS screening date") +
+  ylab("General score") +
+  theme(text = element_text(size=12),
+        axis.text=element_text(size=12),
         legend.position="top") 
 
 age_spline_general_all
