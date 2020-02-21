@@ -23,6 +23,7 @@ df_prob = features %>%
   filter(screening_date <= current_offense_date_limit) %>% # Filter 4
   select(p_current_age, recid)
 
+set.seed(328)
 mdl = glm(recid ~ p_current_age, data=df_prob)
 
 ggplot(data=df_prob, aes(x=p_current_age, y=recid)) + 
@@ -42,7 +43,7 @@ ggplot(data=df_prob, aes(x=p_current_age, y=recid)) +
 ```
 
 ```{r}
-ggsave("Figures/prob_recid.pdf",width = 5, height = 3, units = "in")
+ggsave("Figures/age_only/prob_recid.pdf",width = 5, height = 3, units = "in")
 ```
 
 ## Age of Caucasians and African-Americans
@@ -83,7 +84,7 @@ df_age %>%
 ```
 
 ```{r}
-ggsave("Figures/age_histograms.pdf",width = 7, height = 3, units = "in")
+ggsave("Figures/age_only/age_histograms.pdf",width = 7, height = 3, units = "in")
 ```
 
 ## TPR/FPR by race
@@ -136,5 +137,5 @@ accuracy %>%
 
 
 ```{r}
-ggsave("Figures/TPR-FPR.pdf",width = 7.5, height = 4, units = "in")
+ggsave("Figures/age_only/TPR-FPR.pdf",width = 7.5, height = 4, units = "in")
 ```

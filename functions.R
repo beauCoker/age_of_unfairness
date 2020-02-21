@@ -66,7 +66,7 @@ compute_features = function(person_id,
    #p_weapons_arrest
    out$p_weapons_arrest =  ifelse(is.null(charge), 0, sum(charge$is_weapons, na.rm = TRUE))
   
-  #  # Attempted Using arrests instead of charges to compute History of Violence
+  #  # Attempted using arrests instead of charges to compute History of Violence
   # if(is.null(charge)){
   #   out$p_juv_fel_count = 0
   #   out$p_felprop_violarrest = 0

@@ -1,5 +1,5 @@
 ---
-title: "Predicting Violent Recidivism"
+title: "Predicting General Recidivism"
 author: "Beau Coker"
 date: "6/21/2018"
 output: html_document
@@ -12,7 +12,7 @@ library(tidyverse)
 library(lubridate)
 
 source('functions.r')
-set.seed(12)
+set.seed(1)
 ```
 
 ```{r}
@@ -38,8 +38,8 @@ features_filt = features_before_on %>%
   filter(`Risk of Recidivism_decile_score` != -1, `Risk of Violence_decile_score` != -1) %>% # Filter 1
   filter(!is.na(current_offense_date)) %>% # Filter 3
   filter(screening_date <= current_offense_date_limit) %>% # Filter 4
-  mutate(recid_use = as.factor(recid_violent), # Select recidivism or violent recidivism to use in this script 
-         decile_use = `Risk of Violence_decile_score`) # Select recidivism or violent recidivism decile score to use in this script
+  mutate(recid_use = as.factor(recid), # Select recidivism or violent recidivism to use in this script 
+         decile_use = `Risk of Recidivism_decile_score`) # Select recidivism or violent recidivism decile score to use in this script
   
 
 ## Set parameters (each combination will be run)
@@ -80,17 +80,10 @@ train = features_filt %>%
   transmute(
     #p_current_age,
     p_age_first_offense,
-    p_juv_fel_count = pmin(p_juv_fel_count,2),
-    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
-    p_murder_arrest = pmin(p_murder_arrest,3),
-    p_felassault_arrest = pmin(p_felassault_arrest,3),
-    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest = pmin(p_sex_arrest,3),
-    p_weapons_arrest = pmin(p_weapons_arrest,3),
-    p_n_on_probation = pmin(p_n_on_probation,5),
-    p_current_on_probation = pmin(p_current_on_probation,5),
-    p_prob_revoke = pmin(p_prob_revoke,5),
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
     recid_use)
 
 ## Format for xgboost
@@ -103,7 +96,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
-set.seed(1)
+set.seed(2)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==1,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -158,7 +151,7 @@ res_error[res_error$Group==1,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
-set.seed(2)
+set.seed(4)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==1,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -186,17 +179,10 @@ train = features_filt %>%
   transmute(
     #p_current_age,
     p_age_first_offense,
-    p_juv_fel_count = pmin(p_juv_fel_count,2),
-    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
-    p_murder_arrest = pmin(p_murder_arrest,3),
-    p_felassault_arrest = pmin(p_felassault_arrest,3),
-    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest = pmin(p_sex_arrest,3),
-    p_weapons_arrest = pmin(p_weapons_arrest,3),
-    p_n_on_probation = pmin(p_n_on_probation,5),
-    p_current_on_probation = pmin(p_current_on_probation,5),
-    p_prob_revoke = pmin(p_prob_revoke,5),
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
     race_black = if_else(race=="African-American",1,0),
     race_white = if_else(race=="Caucasian",1,0),
     race_hispanic = if_else(race=="Hispanic",1,0),
@@ -215,7 +201,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
-set.seed(3)
+set.seed(5)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==2,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -254,6 +240,7 @@ data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
 xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 ```
 
+
 ### Model 3: random forest
 
 ```{r}
@@ -270,7 +257,7 @@ res_error[res_error$Group==2,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
-set.seed(4)
+set.seed(6)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==2,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -296,19 +283,11 @@ train = features_filt %>%
   transmute(
     p_current_age,
     p_age_first_offense,
-    p_juv_fel_count = pmin(p_juv_fel_count,2),
-    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
-    p_murder_arrest = pmin(p_murder_arrest,3),
-    p_felassault_arrest = pmin(p_felassault_arrest,3),
-    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest = pmin(p_sex_arrest,3),
-    p_weapons_arrest = pmin(p_weapons_arrest,3),
-    p_n_on_probation = pmin(p_n_on_probation,5),
-    p_current_on_probation = pmin(p_current_on_probation,5),
-    p_prob_revoke = pmin(p_prob_revoke,5),
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
     recid_use)
-
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
@@ -320,7 +299,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
-set.seed(5)
+set.seed(7)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==3,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -359,7 +338,6 @@ data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
 xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 ```
 
-
 ```{r}
 test = features %>%
   inner_join(
@@ -376,20 +354,14 @@ test = features %>%
     person_id,
     screening_date,
     name,
-    decile_use = `Risk of Violence_decile_score`, # Select recidivism or violent recidivism to use in this script ## MAKE SURE TO ADJUST FOR GENERAL / VIOLENT
+    decile_use = `Risk of Recidivism_decile_score`, # Select recidivism or violent recidivism to use in this script ## MAKE SURE TO ADJUST FOR GENERAL / VIOLENT
     p_current_age,
     p_age_first_offense,
-    p_juv_fel_count = pmin(p_juv_fel_count,2),
-    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
-    p_murder_arrest = pmin(p_murder_arrest,3),
-    p_felassault_arrest = pmin(p_felassault_arrest,3),
-    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest = pmin(p_sex_arrest,3),
-    p_weapons_arrest = pmin(p_weapons_arrest,3),
-    p_n_on_probation = pmin(p_n_on_probation,5),
-    p_current_on_probation = pmin(p_current_on_probation,5),
-    p_prob_revoke = pmin(p_prob_revoke,5)
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5)
+    #recid_use )
   )
 
 ## Format for xgboost
@@ -399,9 +371,8 @@ test_xgb = xgb.DMatrix(
 ```
 
 
-
 ```{r}
-set.seed(6)
+set.seed(8)
 highlight = data.frame(
   person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
   screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
@@ -414,10 +385,10 @@ df_plot = test %>%
   mutate(highlight = if_else(is.na(highlight), FALSE, TRUE)) %>%
   mutate(highlight = factor(if_else(highlight==TRUE,"In Table 5", "Not in Table 5"), levels=c("In Table 5", "Not in Table 5")))
 
-person_id_text_topright = c()
+person_id_text_topright = c(11231,7997,10553,11414,3145,1497,1515,1638,3291,799,10774)
 #person_id_text_topright = highlight$person_id
 person_id_text_topleft = c()
-person_id_text_botright = c()
+person_id_text_botright = c(6886,8375,6337,1284,5722,8200,8491,11312,1394)
 person_id_text_botleft = c()
 
 ggplot() +
@@ -428,20 +399,21 @@ ggplot() +
   geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topleft & highlight=="In Table 5")) + 
   geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botright & highlight=="In Table 5")) + 
   geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botleft & highlight=="In Table 5")) + 
-  xlab("Predicted probabilty of violent recidivism") +
-  ylab("COMPAS violent decile")+
+  xlab("Predicted probabilty of general recidivism") +
+  ylab("COMPAS general decile")+
   theme(
     text = element_text(size=12),
     axis.text=element_text(size=12),
     #legend.position = "top",
     legend.position="none") +
-  scale_color_discrete(name = element_blank()) 
-  #xlim(0,1)
+  scale_color_discrete(name = element_blank()) +
+  xlim(0,1)
 ```
 
 ```{r}
-ggsave("Figures/predict_recidivism_violent/xgboostRecid_decile_violent.pdf",width = 6, height = 3.5, units = "in")
+ggsave("Figures/predict_recidivism_general/xgboostRecid_decile_general.pdf",width = 4, height = 4, units = "in")
 ```
+
 
 ### Model 3: random forest
 
@@ -459,7 +431,7 @@ res_error[res_error$Group==3,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
-set.seed(7)
+set.seed(9)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==3,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -489,24 +461,16 @@ train = features_filt %>%
   transmute(
     p_current_age,
     p_age_first_offense,
-    p_juv_fel_count = pmin(p_juv_fel_count,2),
-    p_felprop_violarrest = pmin(p_felprop_violarrest,5),
-    p_murder_arrest = pmin(p_murder_arrest,3),
-    p_felassault_arrest = pmin(p_felassault_arrest,3),
-    p_misdemassault_arrest = pmin(p_misdemassault_arrest,3),
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest = pmin(p_sex_arrest,3),
-    p_weapons_arrest = pmin(p_weapons_arrest,3),
-    p_n_on_probation = pmin(p_n_on_probation,5),
-    p_current_on_probation = pmin(p_current_on_probation,5),
-    p_prob_revoke = pmin(p_prob_revoke,5),
+    p_charge,
+    p_jail30 = pmin(p_jail30,5),
+    p_prison = pmin(p_prison,5),
+    p_probation = pmin(p_probation,5),
     race_black = if_else(race=="African-American",1,0),
     race_white = if_else(race=="Caucasian",1,0),
     race_hispanic = if_else(race=="Hispanic",1,0),
     race_asian = if_else(race=="Asian",1,0),
     race_native = if_else(race=="Native American",1,0), # race == "Other" is the baseline
     recid_use)
-
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
@@ -518,7 +482,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
-set.seed(8)
+set.seed(10)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==4,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -557,7 +521,6 @@ data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
 xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 ```
 
-
 ### Model 3: random forest
 
 ```{r}
@@ -574,7 +537,7 @@ res_error[res_error$Group==4,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
-set.seed(9)
+set.seed(11)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==4,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -590,29 +553,25 @@ rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
 
 
 
+
+
+
+
 ## Group 5 models: test
 
 ```{r}
-### Create group 5 training data
+### Create group 3 training data
 
 ## Select features and round count features
 train = features_filt %>%
   transmute(
     p_current_age,
     p_age_first_offense,
-    p_juv_fel_count,
-    p_felprop_violarrest,
-    p_murder_arrest,
-    p_felassault_arrest,
-    p_misdemassault_arrest,
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest,
-    p_weapons_arrest,
-    p_n_on_probation,
-    p_current_on_probation,
-    p_prob_revoke,
+    p_charge,
+    p_jail30,
+    p_prison,
+    p_probation,
     recid_use)
-
 
 ## Format for xgboost
 train_xgb = xgb.DMatrix(
@@ -624,7 +583,7 @@ train_xgb = xgb.DMatrix(
 ### Model 1: Linear model
 
 ```{r}
-set.seed(10)
+set.seed(12)
 mdl_glm = glm(recid_use ~ ., family=binomial(link='logit'), data=train)
 
 res_error[res_error$Group==5,]$glm = mean(if_else(predict(mdl_glm, type='response', newdata=train)>.5,1,0) != train$recid_use) # ADJUST GROUP
@@ -633,7 +592,7 @@ res_error[res_error$Group==5,]$glm = mean(if_else(predict(mdl_glm, type='respons
 ### Model 2: xgboost
 
 ```{r}
-set.seed(3638)
+set.seed(11212)
 mdl_xgb = fit_xgboost(train_xgb, param)
 ```
 
@@ -663,7 +622,6 @@ data.frame(xgboost = pred*10, compas=features_filt$decile_use) %>%
 xgb.plot.importance(importance_matrix = xgb.importance(model = mdl_xgb))
 ```
 
-
 ```{r}
 test = features %>%
   inner_join(
@@ -680,20 +638,14 @@ test = features %>%
     person_id,
     screening_date,
     name,
-    decile_use = `Risk of Violence_decile_score`, # Select recidivism or violent recidivism to use in this script ## MAKE SURE TO ADJUST FOR GENERAL / VIOLENT
+    decile_use = `Risk of Recidivism_decile_score`, # Select recidivism or violent recidivism to use in this script ## MAKE SURE TO ADJUST FOR GENERAL / VIOLENT
     p_current_age,
     p_age_first_offense,
-    p_juv_fel_count,
-    p_felprop_violarrest,
-    p_murder_arrest,
-    p_felassault_arrest,
-    p_misdemassault_arrest,
-    #p_famviol_arrest = pmin(p_famviol_arrest,3),
-    p_sex_arrest,
-    p_weapons_arrest,
-    p_n_on_probation,
-    p_current_on_probation,
-    p_prob_revoke
+    p_charge,
+    p_jail30,
+    p_prison,
+    p_probation
+    #recid_use )
   )
 
 ## Format for xgboost
@@ -703,8 +655,8 @@ test_xgb = xgb.DMatrix(
 ```
 
 
-
 ```{r}
+set.seed(13)
 highlight = data.frame(
   person_id= c(799, 1284, 1394, 1497, 1515, 1638, 3145, 3291, 5722, 6337, 6886, 7997, 8200, 8375, 8491, 10553, 10774, 11231, 11312, 11414),
   screening_date = ymd(c("2014-06-15","2014-05-14","2014-11-28","2013-07-29","2013-10-23","2013-10-04","2014-12-14","2013-01-17","2013-10-24","2014-02-04","2013-07-12","2014-04-26","2014-05-05","2013-03-19","2014-01-18","2014-09-20","2013-04-09","2014-02-23","2014-05-02","2014-11-26")),
@@ -717,9 +669,10 @@ df_plot = test %>%
   mutate(highlight = if_else(is.na(highlight), FALSE, TRUE)) %>%
   mutate(highlight = factor(if_else(highlight==TRUE,"In Table 5", "Not in Table 5"), levels=c("In Table 5", "Not in Table 5")))
 
-person_id_text_topright = c()
+person_id_text_topright = c(11231,7997,10553,11414,3145,1497,1515,1638,3291,799,10774)
+#person_id_text_topright = highlight$person_id
 person_id_text_topleft = c()
-person_id_text_botright = c()
+person_id_text_botright = c(6886,8375,6337,1284,5722,8200,8491,11312,1394)
 person_id_text_botleft = c()
 
 ggplot() +
@@ -730,8 +683,8 @@ ggplot() +
   geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="bottom", data=filter(df_plot, person_id %in% person_id_text_topleft & highlight=="In Table 5")) + 
   geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="left",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botright & highlight=="In Table 5")) + 
   geom_text(aes(x=pred,y=decile_use,label=name),size=3,nudge_x=0, nudge_y=0, hjust="right",vjust="top", data=filter(df_plot, person_id %in% person_id_text_botleft & highlight=="In Table 5")) + 
-  xlab("Predicted probabilty of violent recidivism") +
-  ylab("COMPAS violent decile")+
+  xlab("Predicted probabilty of general recidivism") +
+  ylab("COMPAS general decile")+
   theme(
     text = element_text(size=12),
     axis.text=element_text(size=12),
@@ -741,10 +694,11 @@ ggplot() +
   xlim(0,1)
 ```
 
+
 ### Model 3: random forest
 
 ```{r}
-set.seed(9919)
+set.seed(89892)
 
 mdl_rf = randomForest(
   formula = recid_use ~ .,
@@ -757,7 +711,7 @@ res_error[res_error$Group==5,]$rf = mean(mdl_rf$predicted != train$recid_use) # 
 ### Model 4: SVM
 
 ```{r}
-set.seed(11)
+set.seed(14)
 mdl_svm = fit_svm(recid_use ~ ., train, param_svm)
 
 res_error[res_error$Group==5,]$svm = mean(mdl_svm$fitted != train$recid_use) # ADJUST GROUP
@@ -767,6 +721,8 @@ res_error[res_error$Group==5,]$svm = mean(mdl_svm$fitted != train$recid_use) # A
 ```{r}
 rm(train, train_xgb, mdl_glm, mdl_xgb, mdl_rf, mdl_svm)
 ```
+
+
 
 
 

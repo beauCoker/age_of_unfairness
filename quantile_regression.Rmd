@@ -101,6 +101,7 @@ score_quan = map_dfc(quan_list, function(quan) {
 )
 
 # For each quantile, regress observed score quantiles on age
+set.seed(3274)
 quan_fits = map(score_quan,
          ~ lm(y ~ I(x^4) + I(x^3) + I(x^2) + x,
               data=data.frame(y = .x , x=scores$p_current_age))
@@ -135,7 +136,7 @@ theme(text = element_text(size=12),
 ```
 
 ```{r}
-ggsave("Figures/quantiles_violent.pdf",width = 5, height = 3, units = "in")
+ggsave("Figures/quantile_regression/quantiles_violent.pdf",width = 5, height = 3, units = "in")
 ```
 
 
@@ -214,6 +215,7 @@ score_quan = map_dfc(quan_list, function(quan) {
 )
 
 # For each quantile, regress observed score quantiles on age
+set.seed(237)
 quan_fits = map(score_quan,
          ~ lm(y ~ I(x^2) + x, 
               data=data.frame(y = .x , x=scores$p_current_age))
@@ -248,5 +250,5 @@ theme(text = element_text(size=12),
 ```
 
 ```{r}
-ggsave("Figures/quantiles_general.pdf",width = 5, height = 3, units = "in")
+ggsave("Figures/quantile_regression/quantiles_general.pdf",width = 5, height = 3, units = "in")
 ```
