@@ -317,8 +317,60 @@ features %>%
 
 ```{r}
 ggsave("Figures/predict_scores_general_arrests/crim_inv_LB_general_arrests.pdf",width = 3.5, height = 2.5, units = "in")
-
 ```
+
+Without age outliers
+
+```{r}
+features %>%
+  filter(filt1,filt3, filt5, filt8) %>%
+  select(crim_inv, raw_score__age_spline) %>%
+  ggplot() +
+    geom_point(aes(x=crim_inv,y=raw_score__age_spline),alpha=.5) +
+    xlim(c(0,51))+
+    theme_bw()+
+    xlab("Sum of Criminal Involvement Components") +
+    ylab(expression(General~score~-~f[age]))  +
+    theme(text = element_text(size=9),
+          axis.text=element_text(size=12),
+          plot.title = element_text(hjust = 0.5),
+          legend.position="top")+
+  ggtitle('Using Arrests')
+```
+
+```{r}
+ggsave("Figures/predict_scores_general_arrests/crim_inv_LB_general_arrests_no_age_outliers.pdf",width = 3.5, height = 2.5, units = "in")
+```
+
+
+### cutoff plot
+
+```{r}
+outlier_cutoff = .08
+features %>%
+  filter(filt1,filt3, filt5, filt8) %>%
+  select(crim_inv, raw_score__age_spline) %>%
+  arrange(crim_inv, raw_score__age_spline) %>%
+  group_by(crim_inv) %>%
+  mutate(count = n()) %>%
+  filter(count >= 2) %>%
+  mutate(dist_nn = as.vector(apply(as.matrix(dist(as.matrix(raw_score__age_spline))),1,function(x) sort(x, partial=2))[2,] )) %>%
+  ungroup() %>%
+  mutate(outlier = ifelse(dist_nn>outlier_cutoff, 1,0)) %>%
+ggplot() +
+    geom_point(aes(x=crim_inv,y=raw_score__age_spline,color=factor(outlier))) +
+    #xlim(c(0,45))+
+    theme_bw()+
+    xlab("Sum of Criminal Involvement Components") +
+    ylab(expression(General~score~-~f[age]))  +
+    theme(text = element_text(size=9),
+          axis.text=element_text(size=12),
+          legend.position="top")+
+  ggtitle(paste0('USING ARRESTS cutoff = ', outlier_cutoff))
+```
+
+
+
 
 
 Try various weightings of inputs criminal involvement subscale (i.e., instead of evenly weighted) (optional)
