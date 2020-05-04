@@ -4,7 +4,7 @@ This repository contains all code used in *The age of secrecy and unfairness in 
 
 There are two data sources that are used in our analysis but not stored in this repository:
 *	The database of [ProPublica data](https://github.com/propublica/compas-analysis), which should be stored at *Raw_data/compas-analysis/compas.db*.
-*	The probation data that we purchased. It is available upon request and should be stored at *Raw_data/probation/*.
+*	The probation data that we purchased. It can be downloaded [here](https://drive.google.com/drive/folders/1s3QuXn4fEkuXtiUnyPphSQ9lMosgVTYj) and should be stored in *Raw_data/probation/*.
 
 These data sources are needed to run *Table_construction.rdata*. Note that the features created by this script are stored in *Table_construction.rdata*.
 
