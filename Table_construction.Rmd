@@ -18,6 +18,12 @@ source('functions.R')
 ```
 
 ```{r}
+### Use legacy nest and unnest
+nest <- nest_legacy
+unnest <- unnest_legacy
+```
+
+```{r}
 ### Local file paths
 
 # ProPublica analysis
@@ -463,6 +469,6 @@ save(data_before, data_on, data_after, data_before_on,
      features, features_before_on, features_on, outcomes,  
      compas_df_wide,
      current_offense_date_limit,
-     file = "Table_construction_arrests.Rdata")
+     file = "Table_construction.Rdata")
      # file = "Table_construction_arrests_hist_violence.Rdata")
 ```
