@@ -6,7 +6,19 @@ There are two data sources that are used in our analysis but not stored in this 
 *	The database of [ProPublica data](https://github.com/propublica/compas-analysis), which should be stored as *Raw_data/compas-analysis/compas.db*.
 *	The probation data that we purchased. It can be downloaded [here](https://drive.google.com/drive/folders/1s3QuXn4fEkuXtiUnyPphSQ9lMosgVTYj) and should be stored in *Raw_data/probation/*.
 
-These data sources are needed to run *Table_construction.rdata*. Note that the features created by this script are stored in *Table_construction.rdata*.
+These data sources are needed to run *Table_construction.rmd*. Note that the features created by this script are stored in *Table_construction.rdata*, and *Table_construction_hist_violence.rdata*. 
+
+The reason why there are two Rdata files in the repository is the following: 
+1)	 The data processing that produces “Table_construction.Rdata” primarily uses charges. 
+2)	The data processing that produces “Table_construction_arrests_hist_violence.Rdata” primarily uses arrests. 
+
+The difference in the code can be found in the functions.R script. Note that we only switch between charges/arrests when computing the History of Violence subscale features. The History of Violence subscale is the main place where the distinction between charges and arrests becomes relevant. 
+
+To run with charges: comment out lines 69-139 in functions.R and make sure the output is saved as “Table_construction.Rdata”.
+To run with arrests: keep lines 69-139 in functions.R and make sure the output is saved as “Table_construction_arrests_hist_violence.Rdata” 
+
+The other scripts should read in either “Table_construction.Rdata” OR “Table_construction_arrests_hist_violence.Rdata” (one only!), depending on if you want the data processing to use charges or arrests. 
+
 
 ## Files
 
@@ -88,16 +100,3 @@ Filters 1, 2
 We created a Shiny application to display criminal history data, COMPAS scores, and the features we constructed for each individual in the dataset. To choose an individual, type a person identification number and select a COMPAS screening date. 
 
 The Charge, Arrest, Jail, Prison, and COMPAS tabs show data made available by ProPublica. Information is separated by when it occured in relation to the COMPAS screening date (before the date, on the date, and after the date). The Features tab shows our constructed features. There is also some useful information in the Profile tab. 
-
-
-
-
-
-
-
-
-
-
-
-
-
